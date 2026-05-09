@@ -1,15 +1,20 @@
 version: "3.8"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RentalTruth — Elasticsearch + Kibana + ELSER
+# RentalTruth — LOCAL DEV ONLY
 # ─────────────────────────────────────────────────────────────────────────────
-# ELSER requirements:
-#   • ML node role must be enabled           → node.roles includes "ml"
-#   • Minimum 4 GB JVM heap                  → ES_JAVA_OPTS=-Xms4g -Xmx4g
-#   • xpack.ml.enabled=true                  → already implied by ml role
-#   • At least Basic licence                 → self-generated basic is enough
+# ⚠️  PRODUCTION uses Elastic Cloud (GCP):
+#       ES  → https://truth-teller-afba06.es.us-central1.gcp.elastic.cloud
+#       KB  → https://truth-teller-afba06.kb.us-central1.gcp.elastic.cloud
+#       Auth: ES_API_KEY in .env — no local stack needed.
 #
-# Host memory: allocate at least 8 GB to Docker for this stack.
+# Use this file ONLY for offline local development / testing without Cloud.
+# Set ES_HOST=localhost and remove ES_API_KEY from .env to use local mode.
+#
+# ELSER requirements (local):
+#   • ML node role → node.roles includes "ml"
+#   • 4 GB JVM heap minimum
+#   • Host memory: allocate ≥ 8 GB to Docker
 #
 # Start:   docker compose -f docker/docker-compose.yml up -d
 # Stop:    docker compose -f docker/docker-compose.yml down

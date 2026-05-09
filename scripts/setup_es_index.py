@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from elasticsearch import Elasticsearch, exceptions as es_exc
 from config.settings import config
+from config.es_client import build_es_client
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger("setup_es_index")
@@ -168,17 +169,7 @@ INDEX_BODY = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 def get_es_client() -> Elasticsearch:
-    return Elasticsearch(
-        hosts=[{
-            "host": config.ES_HOST,
-            "port": config.ES_PORT,
-            "scheme": config.ES_SCHEME,
-        }],
-        basic_auth=config.es_auth,
-        request_timeout=60,
-        retry_on_timeout=True,
-        max_retries=3,
-    )
+    return build_es_client(request_timeout=60)
 
 
 def ensure_elser_inference_endpoint(es: Elasticsearch) -> None:

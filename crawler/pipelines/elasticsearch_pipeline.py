@@ -40,6 +40,7 @@ from elasticsearch import Elasticsearch, helpers, exceptions as es_exc
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config.settings import config
+from config.es_client import build_es_client
 from crawler.items import PropertyItem
 from crawler.spiders.base_spider import BangalorePropertySpider
 
@@ -72,19 +73,11 @@ class ElasticsearchPipeline:
 
     def open_spider(self, spider):
         log.info("[ELSER Pipeline] Connecting to Elasticsearch at %s…", config.es_url)
-        log.info("[ELSER Pipeline] ELSER inference endpoint: %s", config.ELSER_INFERENCE_ID)
+        log.info("[ELSER Pipeline] Auth method : %s",
+                 "API key" if config.uses_api_key else "basic auth")
+        log.info("[ELSER Pipeline] ELSER endpoint: %s", config.ELSER_INFERENCE_ID)
 
-        self._client = Elasticsearch(
-            hosts=[{
-                "host": config.ES_HOST,
-                "port": config.ES_PORT,
-                "scheme": config.ES_SCHEME,
-            }],
-            basic_auth=config.es_auth,
-            request_timeout=ES_REQUEST_TIMEOUT,
-            retry_on_timeout=True,
-            max_retries=3,
-        )
+        self._client = build_es_client(request_timeout=ES_REQUEST_TIMEOUT)
         self._ensure_index_exists()
 
     def close_spider(self, spider):
