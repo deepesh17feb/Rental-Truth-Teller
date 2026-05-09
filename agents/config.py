@@ -68,17 +68,77 @@ def get_llm(temperature: float = 0.1) -> BaseChatModel:
             
             # 1. Synthesis Agent compilation
             if "synthesis agent" in last_msg.lower() or "verdict card" in last_msg.lower():
+                loc = "Whitefield"
+                if "koramangala" in last_msg.lower():
+                    loc = "Koramangala"
+                elif "indiranagar" in last_msg.lower():
+                    loc = "Indiranagar"
+                elif "domlur" in last_msg.lower():
+                    loc = "Domlur"
+                elif "hsr" in last_msg.lower():
+                    loc = "HSR Layout"
+
+                import re
+                # Isolate - Price Analysis line to avoid schema example collisions
+                pricing_line = ""
+                for line in last_msg.splitlines():
+                    if "- price analysis:" in line.lower():
+                        pricing_line = line
+                        break
+
+                rent = 35000.0
+                rent_match = re.search(r"rent_amount[=:\"'\s]+([\d.]+)", pricing_line)
+                if rent_match:
+                    rent = float(rent_match.group(1))
+
+                overpriced = 0.0
+                pct_match = re.search(r"overpriced_percentage[=:\"'\s]+([\d.-]+)", pricing_line)
+                if pct_match:
+                    overpriced = float(pct_match.group(1))
+
+                market_avg = 40.0
+                avg_match = re.search(r"market_avg_price_per_sqft[=:\"'\s]+([\d.]+)", pricing_line)
+                if avg_match:
+                    market_avg = float(avg_match.group(1))
+                
+                area_sqft = 1200.0
+                area_match = re.search(r"area_sqft[=:\"'\s]+([\d.]+)", pricing_line)
+                if area_match:
+                    area_sqft = float(area_match.group(1))
+                
+                fair_rent_avg = market_avg * area_sqft
+                fair_range_min = round(fair_rent_avg * 0.9, 1)
+                fair_range_max = round(fair_rent_avg * 1.1, 1)
+
+                red_flags = []
+                if overpriced > 30.0:
+                    red_flags.append(f"Property pricing is majorly drifted relative to local average benchmarks in {loc} ({overpriced:.1f}% overpriced).")
+                elif overpriced < -10.0:
+                    red_flags.append(f"Good deal alert: Price is {abs(overpriced):.1f}% below average comparables in {loc}.")
+
+                # Vegetarian preferences
+                if loc == "Koramangala":
+                    red_flags.append("Koramangala has highly restrictive vegetarian-only preferences, which may limit occupancy options.")
+                elif "veg" in last_msg.lower():
+                    red_flags.append(f"Vegetarian-only preference restrictions flagged for this society in {loc}.")
+
+                # Metro proximity
+                dist_match = re.search(r"distance_km=([\d.]+)[^)]*metro", last_msg, re.IGNORECASE)
+                if dist_match:
+                    dist_val = float(dist_match.group(1))
+                    if dist_val > 2.5:
+                        red_flags.append(f"Metro station is {dist_val}km away, exceeding the preferred walking distance buffer.")
+                else:
+                    red_flags.append("Metro station is >3km away, exceeding the comfortable walking buffer for daily commutes.")
+
                 return json.dumps({
-                    "fair_range_min": 31500.0,
-                    "fair_range_max": 38500.0,
-                    "overpriced_percentage": -39.4,
-                    "red_flags": [
-                        "Koramangala has highly restrictive vegetarian-only preferences, which may limit occupancy options.",
-                        "Metro station is 4.2km away, exceeding the preferred walking distance buffer."
-                    ],
+                    "fair_range_min": fair_range_min,
+                    "fair_range_max": fair_range_max,
+                    "overpriced_percentage": overpriced,
+                    "red_flags": red_flags,
                     "neighbourhood_score": 5.0,
                     "broker_questionnaire": [
-                        "Is the water supply Cauvery water, or does this society rely entirely on tankers?",
+                        f"Is the water supply Cauvery water, or does this society in {loc} rely entirely on tankers?",
                         "Is the vegetarian-only restriction strictly enforced, or is it a request from the landlord?",
                         "Does the rent include maintenance charges or are they collected separately?",
                         "Are there any dedicated parking spaces allocated for 2-wheelers or 4-wheelers?"

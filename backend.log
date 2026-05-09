@@ -1,15 +1,15 @@
-2026-05-09 11:36:50,546 [INFO] agents.graph - Assembling multi-agent LangGraph workflow…
-2026-05-09 11:36:50,562 [INFO] agents.graph - LangGraph workflow successfully compiled.
-2026-05-09 11:36:57,213 [INFO] agents.supervisor - [Supervisor Agent] Resolving address & geocoding listing…
-2026-05-09 11:36:57,216 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
-2026-05-09 11:36:57,217 [INFO] agents.config - [MockChatModel Received]: You are a Bangalore spatial resolver agent.
+2026-05-09 11:46:00,493 [INFO] agents.graph - Assembling multi-agent LangGraph workflow…
+2026-05-09 11:46:00,510 [INFO] agents.graph - LangGraph workflow successfully compiled.
+2026-05-09 11:46:00,515 [INFO] agents.supervisor - [Supervisor Agent] Resolving address & geocoding listing…
+2026-05-09 11:46:00,517 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:46:00,519 [INFO] agents.config - [MockChatModel Received]: You are a Bangalore spatial resolver agent.
 Analyze the given rental property listing content and extract:
 1. The target locality or area in Bangalore (e.g. Whitefield, Koramangala, Indiranagar, HSR Layout).
 2. A cleaned, structured address.
 3. A sensible latitude/longitude geopoint estimate for this locality in Bangalore.
 
 Raw Listing Content:
-2 bhk in whitefield
+Premium 3 BHK apartment in Indiranagar 100 Feet Rd, close to tech hubs, rent 90000, deposit 500000, 1600 sqft
 
 Return a strictly formatted JSON:
 {
@@ -20,20 +20,20 @@ Return a strictly formatted JSON:
 }
 Ensure you write ONLY the raw JSON block. Do not wrap in markdown codeblocks.
 
-2026-05-09 11:36:57,217 [INFO] agents.supervisor - [Supervisor Agent] Geolocated to `Whitefield`. Coords: (12.9698, 77.75).
-2026-05-09 11:36:57,219 [INFO] agents.neighbourhood - [Neighbourhood Agent] Analyzing neighborhood points of interest (POI)…
-2026-05-09 11:36:57,219 [INFO] agents.neighbourhood - [Neighbourhood Agent] Successfully catalogued local POIs. Metro: Whitefield (Kadugodi) Metro Station (1.2km).
-2026-05-09 11:36:57,219 [INFO] agents.pricing - [Pricing Agent] Analyzing Pricing, Deposit Norms, & Price Drift…
-2026-05-09 11:36:57,220 [INFO] agents.vibe - [Vibe Check Agent] Processing Listing Text…
-2026-05-09 11:36:57,223 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
-2026-05-09 11:36:57,225 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
-2026-05-09 11:36:57,226 [INFO] agents.config - [MockChatModel Received]: You are a property financial extractor. Given the raw property description, extract:
+2026-05-09 11:46:00,519 [INFO] agents.supervisor - [Supervisor Agent] Geolocated to `Indiranagar`. Coords: (12.9784, 77.6408).
+2026-05-09 11:46:00,520 [INFO] agents.neighbourhood - [Neighbourhood Agent] Analyzing neighborhood points of interest (POI)…
+2026-05-09 11:46:00,521 [INFO] agents.neighbourhood - [Neighbourhood Agent] Successfully catalogued local POIs. Metro: Indiranagar Metro Station (2.3km).
+2026-05-09 11:46:00,521 [INFO] agents.pricing - [Pricing Agent] Analyzing Pricing, Deposit Norms, & Price Drift…
+2026-05-09 11:46:00,522 [INFO] agents.vibe - [Vibe Check Agent] Processing Listing Text…
+2026-05-09 11:46:00,524 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:46:00,526 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:46:00,527 [INFO] agents.config - [MockChatModel Received]: You are a property financial extractor. Given the raw property description, extract:
 1. Monthly Rent in INR.
 2. Security Deposit in INR.
 3. Property Area in SqFt.
 
 Raw listing content:
-2 bhk in whitefield
+Premium 3 BHK apartment in Indiranagar 100 Feet Rd, close to tech hubs, rent 90000, deposit 500000, 1600 sqft
 
 Return a strictly formatted JSON object:
 {
@@ -43,7 +43,7 @@ Return a strictly formatted JSON object:
 }
 Write ONLY the raw JSON object and nothing else.
 
-2026-05-09 11:36:57,227 [INFO] agents.config - [MockChatModel Received]: You are the "Vibe Check Agent" in a rental verification network.
+2026-05-09 11:46:00,528 [INFO] agents.config - [MockChatModel Received]: You are the "Vibe Check Agent" in a rental verification network.
 Given the user's raw property description or input listing, analyze the text to find:
 1. Potential discrepancy red flags (e.g., listing claiming "next to metro" but mentioning "20 minutes walk").
 2. Community signals (e.g., family-focused, nightlife, noise problems, security).
@@ -51,7 +51,7 @@ Given the user's raw property description or input listing, analyze the text to 
 4. Overall sentiment profile of the listing (e.g. Enthusiastic, Pressuring, Deceptive, Warm).
 
 Raw Listing Input:
-2 bhk in whitefield
+Premium 3 BHK apartment in Indiranagar 100 Feet Rd, close to tech hubs, rent 90000, deposit 500000, 1600 sqft
 
 Return a strictly formatted JSON object matching this schema:
 {
@@ -62,22 +62,22 @@ Return a strictly formatted JSON object matching this schema:
 }
 Ensure you return ONLY the raw JSON structure. Do not enclose it in markdown tables, wrappers or backticks.
 
-2026-05-09 11:36:57,229 [INFO] agents.vibe - [Vibe Check Agent] Success. Sentiment: Neutral
-2026-05-09 11:36:58,113 [INFO] elastic_transport.transport - POST https://truth-teller-afba06.es.us-central1.gcp.elastic.cloud:443/bangalore_properties/_search [status:200 duration:0.883s]
-2026-05-09 11:36:58,114 [INFO] agents.pricing - [Pricing Agent] ES search matched 20 comparables. Calculated Mean Rate: Rs.30.51/sqft, StdDev: 7.69
-2026-05-09 11:36:58,114 [INFO] agents.pricing - [Pricing Agent] Completed. Rent: Rs.35000, Security Dep: 5.0x Rent multiplier.
-2026-05-09 11:36:58,115 [INFO] agents.synthesis - [Synthesis Agent] Constructing final Verdict Card & Reranking comparables…
-2026-05-09 11:36:58,115 [INFO] agents.config - Jina API key not found or listings empty. Using fallback BM25-alike string scoring for reranking.
-2026-05-09 11:36:58,115 [INFO] agents.synthesis - [Synthesis Agent] Reranked comparables: ['Cozy 2BHK in Whitefield', 'Premium 3BHK Koramangala']
-2026-05-09 11:36:58,117 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
-2026-05-09 11:36:58,118 [INFO] agents.config - [MockChatModel Received]: You are the "Synthesis Agent" in a rental validation multi-agent network.
+2026-05-09 11:46:00,529 [INFO] agents.vibe - [Vibe Check Agent] Success. Sentiment: Neutral
+2026-05-09 11:46:01,398 [INFO] elastic_transport.transport - POST https://truth-teller-afba06.es.us-central1.gcp.elastic.cloud:443/bangalore_properties/_search [status:200 duration:0.868s]
+2026-05-09 11:46:01,398 [INFO] agents.pricing - [Pricing Agent] ES search matched 20 comparables. Calculated Mean Rate: Rs.35.47/sqft, StdDev: 11.05
+2026-05-09 11:46:01,398 [INFO] agents.pricing - [Pricing Agent] Completed. Rent: Rs.90000, Security Dep: 5.6x Rent multiplier.
+2026-05-09 11:46:01,400 [INFO] agents.synthesis - [Synthesis Agent] Constructing final Verdict Card & Reranking comparables…
+2026-05-09 11:46:01,400 [INFO] agents.config - Jina API key not found or listings empty. Using fallback BM25-alike string scoring for reranking.
+2026-05-09 11:46:01,400 [INFO] agents.synthesis - [Synthesis Agent] Reranked comparables: ['Cozy 2BHK in Whitefield', 'Premium 3BHK Koramangala']
+2026-05-09 11:46:01,403 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:46:01,404 [INFO] agents.config - [MockChatModel Received]: You are the "Synthesis Agent" in a rental validation multi-agent network.
 Collect all preceding sub-agent analyses and synthesize them into a consolidated "Verdict Card" report.
 
 Context data:
-- Address Resolved: {'raw_address': '2 bhk in whitefield', 'structured_address': 'Whitefield Main Rd, Bangalore, KA', 'locality': 'Whitefield', 'city': 'Bangalore', 'geo': {'lat': 12.9698, 'lon': 77.75}, 'confidence': 0.9}
-- Price Analysis: {'rent_amount': 35000.0, 'deposit_amount': 175000.0, 'deposit_multiplier': 5.0, 'deposit_is_normal': True, 'area_sqft': 1200.0, 'price_per_sqft': 29.17, 'market_avg_price_per_sqft': 30.51, 'market_std_price_per_sqft': 7.69, 'overpriced_percentage': -4.4, 'price_drift_flag': False}
+- Address Resolved: {'raw_address': 'Premium 3 BHK apartment in Indiranagar 100 Feet Rd, close to tech hubs, rent 90000, deposit 500000, ', 'structured_address': 'Indiranagar 100 Feet Rd, Bangalore, KA', 'locality': 'Indiranagar', 'city': 'Bangalore', 'geo': {'lat': 12.9784, 'lon': 77.6408}, 'confidence': 0.9}
+- Price Analysis: {'rent_amount': 90000.0, 'deposit_amount': 500000.0, 'deposit_multiplier': 5.56, 'deposit_is_normal': True, 'area_sqft': 1600.0, 'price_per_sqft': 56.25, 'market_avg_price_per_sqft': 35.47, 'market_std_price_per_sqft': 11.05, 'overpriced_percentage': 58.6, 'price_drift_flag': True}
 - Vibe & Rules: {'amenity_vs_claim_diffs': [], 'community_signals': ['Quiet residential community'], 'diet_pet_lifestyle': ['Pure veg preferred', 'No pets allowed'], 'listing_nlp_sentiment': 'Neutral'}
-- Neighborhood & Metro proximity: {'facilities': [{'name': 'The Deens Academy', 'facility_type': 'school', 'distance_km': 0.8}, {'name': 'Vydehi School of Excellence', 'facility_type': 'school', 'distance_km': 1.5}, {'name': 'Manipal Hospital Whitefield', 'facility_type': 'hospital', 'distance_km': 1.1}, {'name': 'RxDx Healthcare', 'facility_type': 'hospital', 'distance_km': 2.0}, {'name': 'Nexus Forum Shantiniketan Mall', 'facility_type': 'market', 'distance_km': 0.7}, {'name': 'Reliance Fresh', 'facility_type': 'market', 'distance_km': 0.4}, {'name': 'Whitefield (Kadugodi) Metro Station', 'facility_type': 'metro', 'distance_km': 1.2}], 'metro_station': 'Whitefield (Kadugodi) Metro Station', 'metro_distance_km': 1.2, 'school_count': 2, 'hospital_count': 2, 'market_count': 2, 'kibana_maps_pin_url': "http://localhost:5601/app/maps#/map?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',views:(map:(center:!(12.9698,77.75),zoom:15)))"}
+- Neighborhood & Metro proximity: {'facilities': [{'name': 'Indiranagar High School', 'facility_type': 'school', 'distance_km': 1.4}, {'name': 'Indiranagar General Hospital', 'facility_type': 'hospital', 'distance_km': 2.1}, {'name': 'Smart Bazar', 'facility_type': 'market', 'distance_km': 0.8}, {'name': 'Indiranagar Metro Station', 'facility_type': 'metro', 'distance_km': 2.3}], 'metro_station': 'Indiranagar Metro Station', 'metro_distance_km': 2.3, 'school_count': 1, 'hospital_count': 1, 'market_count': 1, 'kibana_maps_pin_url': "http://localhost:5601/app/maps#/map?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',views:(map:(center:!(12.9784,77.6408),zoom:15)))"}
 
 Output parameters required:
 1. Overpriced Percentage: directly mapped or adjusted from Price Analysis.
@@ -97,4 +97,4 @@ Return a strictly formatted JSON object matching this schema:
 }
 Provide ONLY the raw JSON response.
 
-2026-05-09 11:36:58,118 [INFO] agents.synthesis - [Synthesis Agent] Final Verdict Card generated.
+2026-05-09 11:46:01,405 [INFO] agents.synthesis - [Synthesis Agent] Final Verdict Card generated.

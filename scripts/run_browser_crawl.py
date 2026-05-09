@@ -7,6 +7,7 @@ Usage:
     python3 scripts/run_browser_crawl.py --area indiranagar --source mb
 """
 
+import os
 import argparse
 import json
 import logging
@@ -40,8 +41,11 @@ class MagicBricksBrowserCrawler:
 
     def crawl(self, area: AreaConfig, tx_type: str) -> Generator[PropertyItem, None, None]:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        proxy = {"server": proxy_url} if proxy_url else None
+        
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=self.headless, slow_mo=self.slow_mo)
+            browser = p.chromium.launch(headless=self.headless, slow_mo=self.slow_mo, proxy=proxy)
             context = browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             )
@@ -57,15 +61,16 @@ class MagicBricksBrowserCrawler:
             for loc_name in localities:
                 log.info("[MagicBricks-Browser] Starting %s | %s", loc_name, tx_type)
                 
-                # Use slug if it's the area, otherwise use society name
-                search_term = loc_name
-                url = f"https://www.magicbricks.com/property-for-{category}/residential-real-estate?cityName=Bangalore&Area={search_term.replace(' ', '%20')}"
+                # Use a more robust search URL
+                url = f"https://www.magicbricks.com/property-for-{category}/residential-real-estate?cityName=Bangalore&localityName={loc_name.replace(' ', '%20')}"
                 
                 try:
                     page.goto(url, wait_until="networkidle", timeout=60000)
                     time.sleep(5) # Wait for JS
-
-                    # Debug: Save screenshot
+                    
+                    log.info("[MagicBricks-Browser] Page title: %s", page.title())
+                    if "Access Denied" in page.title() or "Cloudflare" in page.content():
+                        log.warning("[MagicBricks-Browser] Blocked by anti-bot")
                     debug_path = OUTPUT_DIR / f"debug_{loc_name.replace(' ', '_')}_{ts}.png"
                     page.screenshot(path=str(debug_path))
                     log.info("[MagicBricks-Browser] Saved debug screenshot to %s", debug_path)
@@ -131,12 +136,72 @@ class MagicBricksBrowserCrawler:
         suffix = (m.group(2) or "").lower()
         return value * {"cr": 1e7, "lac": 1e5, "lakh": 1e5, "k": 1e3}.get(suffix, 1)
 
+class NinetyAcresBrowserCrawler:
+    def __init__(self, headless: bool = True, slow_mo: int = 0):
+        self.headless = headless
+        self.slow_mo = slow_mo
+
+    def crawl(self, area: AreaConfig, tx_type: str) -> Generator[PropertyItem, None, None]:
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        proxy_url = os.environ.get("HTTPS_PROXY") or os.environ.get("https_proxy")
+        proxy = {"server": proxy_url} if proxy_url else None
+        
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=self.headless, slow_mo=self.slow_mo, proxy=proxy)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+
+            category = "rent" if tx_type == "rent" else "sale"
+            url = f"https://www.99acres.com/property-for-{category}-in-{area.nintyacres_slug}"
+            
+            log.info("[99acres-Browser] Starting %s | %s", area.name, tx_type)
+            try:
+                page.goto(url, wait_until="networkidle", timeout=60000)
+                time.sleep(5)
+
+                debug_path = OUTPUT_DIR / f"debug_99acres_{area.name}_{ts}.png"
+                page.screenshot(path=str(debug_path))
+                log.info("[99acres-Browser] Saved debug screenshot to %s", debug_path)
+
+                cards = page.query_selector_all("section.projectTuple, div.srpTuple__tupleTable")
+                log.info("[99acres-Browser] Found %d cards", len(cards))
+
+                for card in cards:
+                    # Basic extraction for now
+                    title_el = card.query_selector(".projectTuple__projectName, .srpTuple__propertyName")
+                    title = title_el.inner_text() if title_el else "Property in " + area.name
+                    
+                    price_el = card.query_selector(".projectTuple__price, .srpTuple__price")
+                    price_text = price_el.inner_text() if price_el else ""
+                    
+                    yield PropertyItem(
+                        source="99acres",
+                        source_id=str(time.time()), # Placeholder
+                        url=url,
+                        area=area.name,
+                        city=area.city,
+                        state="Karnataka",
+                        title=title.strip(),
+                        transaction_type=tx_type,
+                        property_type="apartment",
+                        price=None, # Simplified
+                        geo=GeoPoint(lat=area.latitude, lon=area.longitude),
+                    )
+
+            except Exception as exc:
+                log.error("[99acres-Browser] Error crawling: %s", exc)
+            
+            browser.close()
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--area", default="indiranagar")
     parser.add_argument("--tx", choices=["rent", "sale"], default="rent")
+    parser.add_argument("--source", choices=["mb", "99"], default="mb")
     parser.add_argument("--headless", action="store_true", default=False)
-    parser.add_argument("--slow-mo", type=int, default=0, help="Slow down UI steps by N ms (useful when running headfully)")
+    parser.add_argument("--slow-mo", type=int, default=0)
     args = parser.parse_args()
 
     area = TARGET_AREAS.get(args.area.lower())
@@ -144,7 +209,10 @@ def main():
         print(f"Area {args.area} not found")
         return
 
-    crawler = MagicBricksBrowserCrawler(headless=args.headless, slow_mo=args.slow_mo)
+    if args.source == "mb":
+        crawler = MagicBricksBrowserCrawler(headless=args.headless, slow_mo=args.slow_mo)
+    else:
+        crawler = NinetyAcresBrowserCrawler(headless=args.headless, slow_mo=args.slow_mo)
     
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_file = OUTPUT_DIR / f"browser_properties_{ts}.jsonl"
