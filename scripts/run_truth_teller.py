@@ -14,17 +14,30 @@ import sys
 # Configure root path mapping so python can locate config and agents modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s"
-)
+# Configure dual logging to both console and a dedicated backend.log file
+log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+
+# Console Handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(log_formatter)
+root_logger.addHandler(console_handler)
+
+# Dedicated Backend File Handler
+backend_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend.log"))
+file_handler = logging.FileHandler(backend_log_path, mode="w")
+file_handler.setFormatter(log_formatter)
+root_logger.addHandler(file_handler)
+
 log = logging.getLogger("RunTruthTeller")
 
 from agents.graph import app
 from agents.state import AgentState
 
-# Ensure we mock Bedrock/Claude if direct AWS keys are missing so testing is flawless
-if not os.environ.get("AWS_ACCESS_KEY_ID") and not os.environ.get("AWS_SECRET_ACCESS_KEY"):
+# Ensure we mock Bedrock/Claude if direct AWS keys are missing or placeholders so testing is flawless
+aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+if not aws_key or aws_key.startswith("BedrockAPIKey") or os.environ.get("USE_MOCK_LLM") == "true":
     log.info("Setting USE_MOCK_LLM = 'true' for local integration validation.")
     os.environ["USE_MOCK_LLM"] = "true"
 
@@ -118,6 +131,32 @@ def run_test_listing(sample_text: str, label: str):
         log.exception(f"Validation failed for {label}: {exc}")
 
 if __name__ == "__main__":
-    print("Starting multi-agent Rental Truth-Teller validation scenario...")
-    run_test_listing(SAMPLE_WHITEFIELD, "WHITEFIELD 2BHK RENTAL")
-    run_test_listing(SAMPLE_KORAMANGALA_OVERPRICED, "KORAMANGALA LUXURY DECEPTIVE")
+    import argparse
+    parser = argparse.ArgumentParser(description="Run Multi-Agent Verification on Bangalore Rental Listings.")
+    parser.add_argument(
+        "--listing",
+        type=str,
+        help="Raw listing text to verify."
+    )
+    parser.add_argument(
+        "--file",
+        type=str,
+        help="Path to file containing listing text."
+    )
+    
+    args = parser.parse_args()
+    
+    if args.listing:
+        run_test_listing(args.listing, "USER CUSTOM CLI LISTING")
+    elif args.file:
+        abs_file_path = os.path.abspath(args.file)
+        if not os.path.exists(abs_file_path):
+            print(f"Error: Listing file not found at {abs_file_path}")
+            sys.exit(1)
+        with open(abs_file_path, "r", encoding="utf-8") as f:
+            file_content = f.read()
+        run_test_listing(file_content, f"USER CUSTOM FILE: {os.path.basename(args.file)}")
+    else:
+        print("Starting multi-agent Rental Truth-Teller validation scenario (default targets)...")
+        run_test_listing(SAMPLE_WHITEFIELD, "WHITEFIELD 2BHK RENTAL")
+        run_test_listing(SAMPLE_KORAMANGALA_OVERPRICED, "KORAMANGALA LUXURY DECEPTIVE")

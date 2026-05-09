@@ -25,10 +25,12 @@ def get_llm(temperature: float = 0.1) -> BaseChatModel:
     aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
     
     # Check if we have valid AWS credentials or mock flag
+    aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
     has_real_credentials = (
-        os.environ.get("AWS_ACCESS_KEY_ID") is not None or 
+        (aws_key != "" and not aws_key.startswith("BedrockAPIKey")) or 
         os.environ.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") is not None or
-        os.environ.get("AWS_SECRET_ACCESS_KEY") is not None
+        (aws_secret != "" and not aws_secret.startswith("QVIovZkP"))
     )
     
     use_mock = os.environ.get("USE_MOCK_LLM") == "true" or not has_real_credentials
@@ -82,15 +84,19 @@ def get_llm(temperature: float = 0.1) -> BaseChatModel:
 # ── Elasticsearch Initialization ───────────────────────────────────────────────
 def get_elasticsearch_client() -> Elasticsearch:
     """Returns initialized client for Elasticsearch."""
-    return Elasticsearch(
-        hosts=[{
+    client_opts = {
+        "hosts": [{
             "host": global_config.ES_HOST,
             "port": global_config.ES_PORT,
             "scheme": global_config.ES_SCHEME,
         }],
-        basic_auth=global_config.es_auth,
-        request_timeout=15,
-    )
+        "request_timeout": 15,
+    }
+    if global_config.ES_API_KEY:
+        client_opts["api_key"] = global_config.ES_API_KEY
+    else:
+        client_opts["basic_auth"] = global_config.es_auth
+    return Elasticsearch(**client_opts)
 
 
 # ── Jina Reranker / Rerank Mock ────────────────────────────────────────────────

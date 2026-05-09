@@ -49,4 +49,13 @@ TARGET_AREAS: Dict[str, AreaConfig] = {
         nintyacres_slug="koramangala-bangalore",
         nobroker_slug="koramangala",
     ),
+    "indiranagar": AreaConfig(
+        name="Indiranagar",
+        city="Bangalore",
+        latitude=12.9719,
+        longitude=77.6412,
+        magicbricks_slug="Indiranagar-Bangalore",
+        nintyacres_slug="indiranagar-bangalore",
+        nobroker_slug="indiranagar",
+    ),
 }

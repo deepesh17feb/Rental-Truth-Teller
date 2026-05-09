@@ -1,0 +1,101 @@
+2026-05-09 11:04:16,456 [INFO] agents.graph - Assembling multi-agent LangGraph workflow…
+2026-05-09 11:04:16,472 [INFO] agents.graph - LangGraph workflow successfully compiled.
+2026-05-09 11:04:16,473 [INFO] RunTruthTeller - Setting USE_MOCK_LLM = 'true' for local integration validation.
+2026-05-09 11:04:16,478 [INFO] agents.supervisor - [Supervisor Agent] Resolving address & geocoding listing…
+2026-05-09 11:04:16,478 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:04:16,482 [INFO] agents.config - [MockChatModel Received]: You are a Bangalore spatial resolver agent.
+Analyze the given rental property listing content and extract:
+1. The target locality or area in Bangalore (e.g. Whitefield, Koramangala, Indiranagar, HSR Layout).
+2. A cleaned, structured address.
+3. A sensible latitude/longitude geopoint estimate for this locality in Bangalore.
+
+Raw Listing Content:
+2BHK semi-furnished apartment in Koramangala. Rent is 55000. Deposit is 300000. Metro is nearby.
+
+Return a strictly formatted JSON:
+{
+  "locality": "Locality Name",
+  "structured_address": "Cleaned Address, Bangalore, Karnataka",
+  "lat": 12.9716, // estimated latitude
+  "lon": 77.5946  // estimated longitude
+}
+Ensure you write ONLY the raw JSON block. Do not wrap in markdown codeblocks.
+
+2026-05-09 11:04:16,482 [INFO] agents.supervisor - [Supervisor Agent] Geolocated to `Whitefield`. Coords: (12.9698, 77.75).
+2026-05-09 11:04:16,484 [INFO] agents.neighbourhood - [Neighbourhood Agent] Analyzing neighborhood points of interest (POI)…
+2026-05-09 11:04:16,484 [INFO] agents.pricing - [Pricing Agent] Analyzing Pricing, Deposit Norms, & Price Drift…
+2026-05-09 11:04:16,485 [INFO] agents.vibe - [Vibe Check Agent] Processing Listing Text…
+2026-05-09 11:04:16,485 [INFO] agents.neighbourhood - [Neighbourhood Agent] Successfully catalogued local POIs. Metro: Whitefield (Kadugodi) Metro Station (1.2km).
+2026-05-09 11:04:16,485 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:04:16,485 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:04:16,489 [INFO] agents.config - [MockChatModel Received]: You are a property financial extractor. Given the raw property description, extract:
+1. Monthly Rent in INR.
+2. Security Deposit in INR.
+3. Property Area in SqFt.
+
+Raw listing content:
+2BHK semi-furnished apartment in Koramangala. Rent is 55000. Deposit is 300000. Metro is nearby.
+
+Return a strictly formatted JSON object:
+{
+  "rent": float_value_or_zero,
+  "deposit": float_value_or_zero,
+  "area_sqft": float_value_or_null
+}
+Write ONLY the raw JSON object and nothing else.
+
+2026-05-09 11:04:16,492 [INFO] agents.config - [MockChatModel Received]: You are the "Vibe Check Agent" in a rental verification network.
+Given the user's raw property description or input listing, analyze the text to find:
+1. Potential discrepancy red flags (e.g., listing claiming "next to metro" but mentioning "20 minutes walk").
+2. Community signals (e.g., family-focused, nightlife, noise problems, security).
+3. Lifestyle/diet/pet rules (e.g., "Only pure veg", "No pets", "Tenant type: bachelor boys only").
+4. Overall sentiment profile of the listing (e.g. Enthusiastic, Pressuring, Deceptive, Warm).
+
+Raw Listing Input:
+2BHK semi-furnished apartment in Koramangala. Rent is 55000. Deposit is 300000. Metro is nearby.
+
+Return a strictly formatted JSON object matching this schema:
+{
+  "amenity_vs_claim_diffs": ["list of found discrepancies or exaggerations"],
+  "community_signals": ["extracted vibe/neighbourhood feel signals from text"],
+  "diet_pet_lifestyle": ["restrictive rules like food, pets, gender, marital status constraints"],
+  "listing_nlp_sentiment": "One word describing overall listing sentiment"
+}
+Ensure you return ONLY the raw JSON structure. Do not enclose it in markdown tables, wrappers or backticks.
+
+2026-05-09 11:04:16,493 [INFO] agents.vibe - [Vibe Check Agent] Success. Sentiment: Neutral
+2026-05-09 11:04:17,372 [INFO] elastic_transport.transport - POST https://truth-teller-afba06.es.us-central1.gcp.elastic.cloud:443/bangalore_properties/_search [status:200 duration:0.879s]
+2026-05-09 11:04:17,373 [INFO] agents.pricing - [Pricing Agent] ES search matched 20 comparables. Calculated Mean Rate: Rs.32.94/sqft, StdDev: 11.99
+2026-05-09 11:04:17,373 [INFO] agents.pricing - [Pricing Agent] Completed. Rent: Rs.35000, Security Dep: 4.3x Rent multiplier.
+2026-05-09 11:04:17,374 [INFO] agents.synthesis - [Synthesis Agent] Constructing final Verdict Card & Reranking comparables…
+2026-05-09 11:04:17,374 [INFO] agents.config - Jina API key not found or listings empty. Using fallback BM25-alike string scoring for reranking.
+2026-05-09 11:04:17,374 [INFO] agents.synthesis - [Synthesis Agent] Reranked comparables: ['Cozy 2BHK in Whitefield', 'Premium 3BHK Koramangala']
+2026-05-09 11:04:17,374 [WARNING] agents.config - Returning MockChatModel for local/integration execution.
+2026-05-09 11:04:17,378 [INFO] agents.config - [MockChatModel Received]: You are the "Synthesis Agent" in a rental validation multi-agent network.
+Collect all preceding sub-agent analyses and synthesize them into a consolidated "Verdict Card" report.
+
+Context data:
+- Address Resolved: {'raw_address': '2BHK semi-furnished apartment in Koramangala. Rent is 55000. Deposit is 300000. Metro is nearby.', 'structured_address': '', 'locality': 'Whitefield', 'city': 'Bangalore', 'geo': {'lat': 12.9698, 'lon': 77.75}, 'confidence': 0.9}
+- Price Analysis: {'rent_amount': 35000.0, 'deposit_amount': 150000.0, 'deposit_multiplier': 4.29, 'deposit_is_normal': True, 'area_sqft': None, 'price_per_sqft': None, 'market_avg_price_per_sqft': 32.94, 'market_std_price_per_sqft': 11.99, 'overpriced_percentage': 0.0, 'price_drift_flag': False}
+- Vibe & Rules: {'amenity_vs_claim_diffs': [], 'community_signals': [], 'diet_pet_lifestyle': [], 'listing_nlp_sentiment': 'Neutral'}
+- Neighborhood & Metro proximity: {'facilities': [{'name': 'The Deens Academy', 'facility_type': 'school', 'distance_km': 0.8}, {'name': 'Vydehi School of Excellence', 'facility_type': 'school', 'distance_km': 1.5}, {'name': 'Manipal Hospital Whitefield', 'facility_type': 'hospital', 'distance_km': 1.1}, {'name': 'RxDx Healthcare', 'facility_type': 'hospital', 'distance_km': 2.0}, {'name': 'Nexus Forum Shantiniketan Mall', 'facility_type': 'market', 'distance_km': 0.7}, {'name': 'Reliance Fresh', 'facility_type': 'market', 'distance_km': 0.4}, {'name': 'Whitefield (Kadugodi) Metro Station', 'facility_type': 'metro', 'distance_km': 1.2}], 'metro_station': 'Whitefield (Kadugodi) Metro Station', 'metro_distance_km': 1.2, 'school_count': 2, 'hospital_count': 2, 'market_count': 2, 'kibana_maps_pin_url': "http://localhost:5601/app/maps#/map?_g=(filters:!(),refreshInterval:(pause:!t,value:0),time:(from:now-15m,to:now))&_a=(description:'',views:(map:(center:!(12.9698,77.75),zoom:15)))"}
+
+Output parameters required:
+1. Overpriced Percentage: directly mapped or adjusted from Price Analysis.
+2. Red Flags list: Gather extreme prices, strict lease terms (e.g. high deposit, bachelors penalty, veg-only restrictions) or POI deficiencies (e.g. no metro within 3km).
+3. Broker Questionnaire: 4 key critical/clever questions to ask the broker or owner based on discrepancies OR constraints identified here.
+4. Fair Range: Return a dynamic estimates minimum and maximum rate (e.g., average rent +/- 10%).
+5. Neighbourhood Score: Compute a score from 0 to 10 based on POIs (Metro < 1.5km adds 4 pts, School > 0 adds 2 pts, Hospital > 0 adds 2 pts, Market > 0 adds 2 pts).
+
+Return a strictly formatted JSON object matching this schema:
+{
+  "fair_range_min": 32000.0,
+  "fair_range_max": 38000.0,
+  "overpriced_percentage": 12.5,
+  "red_flags": ["example flag 1", "example flag 2"],
+  "neighbourhood_score": 8.0,
+  "broker_questionnaire": ["question 1", "question 2"]
+}
+Provide ONLY the raw JSON response.
+
+2026-05-09 11:04:17,378 [INFO] agents.synthesis - [Synthesis Agent] Final Verdict Card generated.
