@@ -51,4 +51,10 @@ tags
 # Persistent undo
 [._]*.un~
 
+
 # End of https://www.toptal.com/developers/gitignore/api/macos,vim
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class

@@ -62,8 +62,6 @@ ELSER_INFERENCE_ID = config.ELSER_INFERENCE_ID
 
 INDEX_BODY = {
     "settings": {
-        "number_of_shards": config.ES_INDEX_SHARDS,
-        "number_of_replicas": config.ES_INDEX_REPLICA,
         "analysis": {
             "analyzer": {
                 "property_analyzer": {
@@ -89,37 +87,25 @@ INDEX_BODY = {
             "pincode": {"type": "keyword"},
             "geo":     {"type": "geo_point"},
 
-            # address: BM25 text + ELSER semantic
+            # address: BM25 text
             "address": {
                 "type": "text",
                 "analyzer": "property_analyzer",
                 "fields": {"raw": {"type": "keyword"}},
             },
-            "address_semantic": {
-                "type": "semantic_text",
-                "inference_id": ELSER_INFERENCE_ID,
-            },
 
             # ── Listing Meta ──────────────────────────────────────────────────
-            # title: BM25 text + ELSER semantic
+            # title: BM25 text
             "title": {
                 "type": "text",
                 "analyzer": "property_analyzer",
                 "fields": {"raw": {"type": "keyword"}},
             },
-            "title_semantic": {
-                "type": "semantic_text",
-                "inference_id": ELSER_INFERENCE_ID,
-            },
 
-            # description: BM25 text + ELSER semantic
+            # description: BM25 text
             "description": {
                 "type": "text",
                 "analyzer": "property_analyzer",
-            },
-            "description_semantic": {
-                "type": "semantic_text",
-                "inference_id": ELSER_INFERENCE_ID,
             },
 
             "transaction_type": {"type": "keyword"},   # rent | sale
@@ -150,12 +136,6 @@ INDEX_BODY = {
             # ── Amenities ─────────────────────────────────────────────────────
             # amenities: keyword list for exact filters
             "amenities": {"type": "keyword"},
-            # amenities_semantic: ELSER-encoded joined string for semantic search
-            # e.g. "swimming pool gym parking clubhouse"
-            "amenities_semantic": {
-                "type": "semantic_text",
-                "inference_id": ELSER_INFERENCE_ID,
-            },
 
             # ── Media ─────────────────────────────────────────────────────────
             "images": {"type": "keyword", "index": False},
@@ -164,91 +144,7 @@ INDEX_BODY = {
 }
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Helpers
-# ─────────────────────────────────────────────────────────────────────────────
 
-def get_es_client() -> Elasticsearch:
-    return build_es_client(request_timeout=60)
-
-
-def ensure_elser_inference_endpoint(es: Elasticsearch) -> None:
-    """
-    Create the ELSER sparse-embedding inference endpoint if it doesn't exist.
-
-    For the built-in '.elser-2-elasticsearch' endpoint (ES 8.13+):
-      - ES downloads and deploys ELSER v2 automatically on first inference.
-      - No explicit model deployment step is needed.
-
-    For a custom endpoint (e.g. 'elser-bangalore-properties'):
-      - We create it here with explicit resource settings.
-      - First inference call will trigger model download (~250 MB).
-    """
-    inference_id = ELSER_INFERENCE_ID
-
-    # Built-in endpoint — always exists, nothing to create
-    if inference_id.startswith(".elser-2"):
-        log.info("Using built-in ELSER endpoint '%s' — no setup needed.", inference_id)
-        return
-
-    # Check if custom endpoint already exists
-    try:
-        existing = es.inference.get(inference_id=inference_id)
-        log.info("ELSER inference endpoint '%s' already exists.", inference_id)
-        return
-    except es_exc.NotFoundError:
-        pass
-    except Exception as exc:
-        log.warning("Could not check inference endpoint: %s", exc)
-
-    # Create custom ELSER endpoint
-    log.info("Creating ELSER inference endpoint '%s'…", inference_id)
-    es.inference.put(
-        task_type="sparse_embedding",
-        inference_id=inference_id,
-        body={
-            "service": "elser",
-            "service_settings": {
-                "num_allocations": config.ELSER_NUM_ALLOCATIONS,
-                "num_threads": config.ELSER_NUM_THREADS,
-                "model_id": ".elser_model_2",
-            },
-        },
-    )
-    log.info("ELSER inference endpoint '%s' created.", inference_id)
-    _wait_for_elser_ready(es, inference_id)
-
-
-def _wait_for_elser_ready(es: Elasticsearch, inference_id: str, timeout: int = 600) -> None:
-    """
-    Block until ELSER responds to a test inference.
-    The first call triggers model download (~250 MB); allow up to 10 minutes.
-    """
-    log.info("Waiting for ELSER to be ready (model may need to download)…")
-    deadline = time.time() + timeout
-    attempt = 0
-
-    while time.time() < deadline:
-        attempt += 1
-        try:
-            es.inference.inference(
-                inference_id=inference_id,
-                task_type="sparse_embedding",
-                body={"input": ["test"]},
-            )
-            log.info("ELSER is ready after %d attempt(s).", attempt)
-            return
-        except es_exc.ServiceUnavailableError:
-            log.info("  ELSER not ready yet (attempt %d) — waiting 15s…", attempt)
-            time.sleep(15)
-        except Exception as exc:
-            log.warning("  ELSER probe error (attempt %d): %s", attempt, exc)
-            time.sleep(15)
-
-    raise TimeoutError(
-        f"ELSER inference endpoint '{inference_id}' did not become ready "
-        f"within {timeout}s. Check ES ML node logs."
-    )
 
 
 def create_or_update_index(es: Elasticsearch, index_name: str) -> None:
@@ -273,13 +169,12 @@ def create_or_update_index(es: Elasticsearch, index_name: str) -> None:
 
 def main() -> None:
     log.info("=" * 60)
-    log.info("RentalTruth — Elasticsearch + ELSER Setup")
+    log.info("RentalTruth — Elasticsearch + BM25 Setup")
     log.info("  ES URL        : %s", config.es_url)
     log.info("  Index         : %s", config.ES_INDEX_PROPERTIES)
-    log.info("  ELSER endpoint: %s", ELSER_INFERENCE_ID)
     log.info("=" * 60)
 
-    es = get_es_client()
+    es = build_es_client(request_timeout=60)
 
     # 1. Verify connectivity
     try:
@@ -291,17 +186,12 @@ def main() -> None:
         log.error("Start ES with: docker compose -f docker/docker-compose.yml up -d")
         sys.exit(1)
 
-    # 2. ELSER inference endpoint
-    ensure_elser_inference_endpoint(es)
-
-    # 3. Index
+    # 2. Index
     create_or_update_index(es, config.ES_INDEX_PROPERTIES)
 
     log.info("=" * 60)
     log.info("Setup complete.")
-    log.info("  Semantic search fields: title_semantic, description_semantic,")
-    log.info("                          amenities_semantic, address_semantic")
-    log.info("  Inference endpoint    : %s", ELSER_INFERENCE_ID)
+    log.info("  BM25 Index fully configured.")
     log.info("=" * 60)
 
 
