@@ -25,6 +25,9 @@ class AreaConfig:
     nintyacres_slug: str = ""        # e.g. "whitefield"
     nobroker_slug: str = ""          # e.g. "whitefield"
 
+    # Specific societies to target within this area
+    societies: list[str] = field(default_factory=list)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TWO TARGET AREAS IN BANGALORE
@@ -57,5 +60,12 @@ TARGET_AREAS: Dict[str, AreaConfig] = {
         magicbricks_slug="Indiranagar-Bangalore",
         nintyacres_slug="indiranagar-bangalore",
         nobroker_slug="indiranagar",
+        societies=[
+            "Embassy Habitat",
+            "Prestige Leela Residences",
+            "Purva Whitehall",
+            "Sreeram Sree Niwas",
+            "Sterling Terrace",
+        ],
     ),
 }

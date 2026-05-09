@@ -10,6 +10,12 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import warnings
+
+# Suppress python framework warnings and deprecation noise
+warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", message=".*allowed_objects.*")
 
 # Configure root path mapping so python can locate config and agents modules
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -19,12 +25,13 @@ log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s - %(mess
 root_logger = logging.getLogger()
 root_logger.setLevel(logging.INFO)
 
-# Console Handler
+# Console Handler - Default is restricted to ERROR to ensure pristine clean terminal display
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.ERROR)
 root_logger.addHandler(console_handler)
 
-# Dedicated Backend File Handler
+# Dedicated Backend File Handler (captures all INFO, warnings, and diagnostics behind the scenes)
 backend_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend.log"))
 file_handler = logging.FileHandler(backend_log_path, mode="w")
 file_handler.setFormatter(log_formatter)
@@ -37,7 +44,7 @@ from agents.state import AgentState
 
 # Ensure we mock Bedrock/Claude if direct AWS keys are missing or placeholders so testing is flawless
 aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
-if not aws_key or aws_key.startswith("BedrockAPIKey") or os.environ.get("USE_MOCK_LLM") == "true":
+if not aws_key or os.environ.get("USE_MOCK_LLM") == "true":
     log.info("Setting USE_MOCK_LLM = 'true' for local integration validation.")
     os.environ["USE_MOCK_LLM"] = "true"
 
@@ -61,11 +68,17 @@ Bachelor guys or girls allowed. No dietary restrictions.
 Note: 15 mins drive to MG road or closest metro lines. Immediate move-in.
 """
 
-def run_test_listing(sample_text: str, label: str):
+def run_test_listing(sample_text: str, label: str, verbose: bool = False):
+    if verbose:
+        console_handler.setLevel(logging.INFO)
+    else:
+        console_handler.setLevel(logging.ERROR)
+
     print("\n" + "="*80)
     print(f" RUNNING MULTI-AGENT VERIFICATION ON: {label}")
     print("="*80)
-    print(f"Listing Input Snippet:\n{sample_text.strip()[:250]}...\n")
+    if verbose:
+        print(f"Listing Input Snippet:\n{sample_text.strip()[:250]}...\n")
     
     initial_state: AgentState = {
         "listing_input": sample_text,
@@ -81,10 +94,11 @@ def run_test_listing(sample_text: str, label: str):
         # Invoke the compiled StateGraph
         final_response = app.invoke(initial_state)
         
-        print("\n"+"-"*40 + " AGENT TRACE LOGGER " + "-"*40)
-        for msg in final_response.get("messages", []):
-            print(f" > {msg}")
-        print("-"*100)
+        if verbose:
+            print("\n"+"-"*40 + " AGENT TRACE LOGGER " + "-"*40)
+            for msg in final_response.get("messages", []):
+                print(f" > {msg}")
+            print("-"*100)
         
         address = final_response.get("address_resolved")
         pricing = final_response.get("pricing_data")
@@ -92,29 +106,31 @@ def run_test_listing(sample_text: str, label: str):
         neighbourhood = final_response.get("neighbourhood_data")
         verdict = final_response.get("final_verdict")
         
-        if address:
-            print(f"\n🧭 Geocoding Result: {address.locality} | Coords: ({address.geo.lat}, {address.geo.lon})")
-            print(f"   Structured Address: {address.structured_address}")
-            
-        if pricing:
-            print(f"\n🪙 Pricing details: Rent: Rs.{pricing.rent_amount:.2f} | Deposit: Rs.{pricing.deposit_amount:.2f} ({pricing.deposit_multiplier}x rent)")
-            print(f"   Calculated Price/Sqft: Rs.{pricing.price_per_sqft}/sqft vs Area Market Average: Rs.{pricing.market_avg_price_per_sqft}/sqft")
-            print(f"   Overpriced Percentage: {pricing.overpriced_percentage}%  (Price Drift Flag: {pricing.price_drift_flag})")
-            
-        if vibe:
-            print(f"\n🎨 Vibe Sentiment: {vibe.listing_nlp_sentiment}")
-            print(f"   Lifestyle rules parsed: {vibe.diet_pet_lifestyle}")
-            print(f"   Description NLP Discrepancies: {vibe.amenity_vs_claim_diffs}")
-            
-        if neighbourhood:
-            print(f"\n🏫 POI Distance Audits:")
-            for facility in neighbourhood.facilities:
-                print(f"   • [{facility.facility_type.upper()}] {facility.name} at {facility.distance_km} km")
+        if verbose:
+            if address:
+                print(f"\n🧭 Geocoding Result: {address.locality} | Coords: ({address.geo.lat}, {address.geo.lon})")
+                print(f"   Structured Address: {address.structured_address}")
+                
+            if pricing:
+                print(f"\n🪙 Pricing details: Rent: Rs.{pricing.rent_amount:.2f} | Deposit: Rs.{pricing.deposit_amount:.2f} ({pricing.deposit_multiplier}x rent)")
+                print(f"   Calculated Price/Sqft: Rs.{pricing.price_per_sqft}/sqft vs Area Market Average: Rs.{pricing.market_avg_price_per_sqft}/sqft")
+                print(f"   Overpriced Percentage: {pricing.overpriced_percentage}%  (Price Drift Flag: {pricing.price_drift_flag})")
+                
+            if vibe:
+                print(f"\n🎨 Vibe Sentiment: {vibe.listing_nlp_sentiment}")
+                print(f"   Lifestyle rules parsed: {vibe.diet_pet_lifestyle}")
+                print(f"   Description NLP Discrepancies: {vibe.amenity_vs_claim_diffs}")
+                
+            if neighbourhood:
+                print(f"\n🏫 POI Distance Audits:")
+                for facility in neighbourhood.facilities:
+                    print(f"   • [{facility.facility_type.upper()}] {facility.name} at {facility.distance_km} km")
                 
         if verdict:
             print("\n" + "#"*80)
             print("                   🏆 FINAL VERDICT CARD REPORT 🏆                   ")
             print("#"*80)
+            print(f" ➡️ structured location: {address.locality if address else 'Bangalore'}")
             print(f" ➡️ Fair Area Price Range: Rs.{verdict.fair_range_min:.1f} - Rs.{verdict.fair_range_max:.1f}")
             print(f" ➡️ Overpriced metric: {verdict.overpriced_percentage}%")
             print(f" ➡️ Expected Upfront Move-In Cost: Rs.{verdict.total_upfront_cost:.2f} (Deposit + First Rent + Standard painting/brokerage)")
@@ -143,11 +159,16 @@ if __name__ == "__main__":
         type=str,
         help="Path to file containing listing text."
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Runs in verbose trace logging mode displaying active multi-agent operations."
+    )
     
     args = parser.parse_args()
     
     if args.listing:
-        run_test_listing(args.listing, "USER CUSTOM CLI LISTING")
+        run_test_listing(args.listing, "USER CUSTOM CLI LISTING", verbose=args.verbose)
     elif args.file:
         abs_file_path = os.path.abspath(args.file)
         if not os.path.exists(abs_file_path):
@@ -155,8 +176,35 @@ if __name__ == "__main__":
             sys.exit(1)
         with open(abs_file_path, "r", encoding="utf-8") as f:
             file_content = f.read()
-        run_test_listing(file_content, f"USER CUSTOM FILE: {os.path.basename(args.file)}")
+        run_test_listing(file_content, f"USER CUSTOM FILE: {os.path.basename(args.file)}", verbose=args.verbose)
     else:
-        print("Starting multi-agent Rental Truth-Teller validation scenario (default targets)...")
-        run_test_listing(SAMPLE_WHITEFIELD, "WHITEFIELD 2BHK RENTAL")
-        run_test_listing(SAMPLE_KORAMANGALA_OVERPRICED, "KORAMANGALA LUXURY DECEPTIVE")
+        print("\n" + "="*80)
+        print(" 🏠 WELCOME TO RENTAL TRUTH-TELLER MULTI-AGENT INTERACTIVE CLI 🏠 ")
+        print("="*80)
+        print("Paste your rental listing text or type your queries below.")
+        print("To submit the text for analysis, press [ENTER] twice.")
+        print("Type 'exit' or 'quit' on a new line to exit.")
+        print("="*80 + "\n")
+
+        while True:
+            try:
+                lines = []
+                print("📝 Enter/Paste Rental listing (press Enter twice to analyze):")
+                while True:
+                    line = input()
+                    if not line and lines:  # Empty line (double Enter) and has content
+                        break
+                    if line.strip().lower() in ("exit", "quit"):
+                        print("Goodbye! 🏠")
+                        sys.exit(0)
+                    lines.append(line)
+
+                full_input = "\n".join(lines).strip()
+                if not full_input:
+                    continue
+
+                run_test_listing(full_input, "INTERACTIVE CLI INPUT", verbose=args.verbose)
+                print("\n" + "-"*80 + "\n")
+            except (KeyboardInterrupt, EOFError):
+                print("\nGoodbye! 🏠")
+                break

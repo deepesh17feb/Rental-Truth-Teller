@@ -77,6 +77,13 @@ def _build_session() -> requests.Session:
     adapter = HTTPAdapter(max_retries=retry)
     session.mount("https://", adapter)
     session.mount("http://",  adapter)
+
+    # Establish cookies by hitting home page
+    try:
+        session.get("https://www.magicbricks.com/", timeout=10)
+    except:
+        pass
+
     return session
 
 
@@ -167,61 +174,73 @@ class MagicBricksCrawler:
 
     def crawl(self, area: AreaConfig, tx_type: str) -> Generator[PropertyItem, None, None]:
         category = "S" if tx_type == "sale" else "R"
-        locality  = quote(area.magicbricks_slug)
-        offset    = 0
-        page      = 1
+        
+        # If area has specific societies, crawl them one by one.
+        # Otherwise, crawl the entire area.
+        localities = [area.magicbricks_slug]
+        if area.societies:
+            localities = area.societies
 
-        while True:
-            url = self._SEARCH_API.format(
-                category=category, locality=locality, offset=offset
-            )
-            log.info("[MagicBricks] Page %d | area=%s tx=%s", page, area.name, tx_type)
+        for loc_name in localities:
+            locality  = quote(loc_name)
+            offset    = 0
+            page      = 1
 
-            try:
-                resp = self.session.get(url, timeout=config.CRAWL_DOWNLOAD_TIMEOUT)
-                resp.raise_for_status()
-            except requests.RequestException as exc:
-                log.error("[MagicBricks] Request failed: %s", exc)
-                break
-
-            # Try JSON response first (the API sometimes returns JSON directly)
-            try:
-                data = resp.json()
-                listings = (
-                    data.get("propertyList")
-                    or data.get("propList")
-                    or data.get("results")
-                    or []
+            while True:
+                url = self._SEARCH_API.format(
+                    category=category, locality=locality, offset=offset
                 )
-                if listings:
-                    log.info("[MagicBricks] JSON API → %d listings", len(listings))
-                    for raw in listings:
-                        item = self._parse_json_listing(raw, area, tx_type)
-                        if item:
-                            yield item
+                log.info("[MagicBricks] Page %d | %s | %s", page, loc_name, tx_type)
 
-                    if len(listings) < 30:
-                        break
-                    offset += 30
-                    page   += 1
-                    time.sleep(config.CRAWL_DELAY_SECONDS)
-                    continue
-            except ValueError:
-                pass  # Not JSON — fall through to HTML
+                try:
+                    # Add Referer to headers
+                    headers = {
+                        "Referer": "https://www.magicbricks.com/property-for-rent/residential-real-estate?cityName=Bangalore"
+                    }
+                    resp = self.session.get(url, headers=headers, timeout=config.CRAWL_DOWNLOAD_TIMEOUT)
+                    resp.raise_for_status()
+                except requests.RequestException as exc:
+                    log.error("[MagicBricks] Request failed for %s: %s", loc_name, exc)
+                    break
 
-            # HTML fallback: extract embedded JS state
-            html = resp.text
-            items = list(self._parse_html_page(html, area, tx_type, url))
-            log.info("[MagicBricks] HTML fallback → %d items", len(items))
-            yield from items
+                # Try JSON response first (the API sometimes returns JSON directly)
+                try:
+                    data = resp.json()
+                    listings = (
+                        data.get("propertyList")
+                        or data.get("propList")
+                        or data.get("results")
+                        or []
+                    )
+                    if listings:
+                        log.info("[MagicBricks] JSON API → %d listings for %s", len(listings), loc_name)
+                        for raw in listings:
+                            item = self._parse_json_listing(raw, area, tx_type)
+                            if item:
+                                yield item
 
-            # Pagination via HTML — look for next offset
-            next_m = re.search(r'"nextOffset"\s*:\s*(\d+)', html)
-            if not next_m or not items:
-                break
-            offset = int(next_m.group(1))
-            page  += 1
-            time.sleep(config.CRAWL_DELAY_SECONDS)
+                        if len(listings) < 30:
+                            break
+                        offset += 30
+                        page   += 1
+                        time.sleep(config.CRAWL_DELAY_SECONDS)
+                        continue
+                except ValueError:
+                    pass  # Not JSON — fall through to HTML
+
+                # HTML fallback: extract embedded JS state
+                html = resp.text
+                items = list(self._parse_html_page(html, area, tx_type, url))
+                log.info("[MagicBricks] HTML fallback → %d items for %s", len(items), loc_name)
+                yield from items
+
+                # Pagination via HTML — look for next offset
+                next_m = re.search(r'"nextOffset"\s*:\s*(\d+)', html)
+                if not next_m or not items:
+                    break
+                offset = int(next_m.group(1))
+                page  += 1
+                time.sleep(config.CRAWL_DELAY_SECONDS)
 
     def _parse_json_listing(
         self, raw: dict, area: AreaConfig, tx_type: str

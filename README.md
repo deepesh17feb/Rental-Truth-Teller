@@ -19,12 +19,27 @@ source .venv/bin/bin/activate  # On Windows use: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2. Running Local Scenarios
-Test the compiled multi-agent graph against sample listing inputs (such as Whitefield gated communities or overpriced Koramangala properties):
+### 2. Running Local Scenarios & Interactive Prompt Loop
+
+You can test the compiled multi-agent graph against custom listing inputs, sample gated communities, or run it in an interactive REPL loop:
+
 ```bash
-# Run the verification CLI entrypoint
+# Launch the Interactive CLI Loop (paste listings and analyze in clean, quiet mode!)
 python scripts/run_truth_teller.py
+
+# Run in detailed verbose mode to show all live agent steps and trace logic inside the terminal
+python scripts/run_truth_teller.py --verbose
+
+# Analyze a specific listing string directly from CLI in clean mode
+python scripts/run_truth_teller.py --listing "Premium 2BHK flat in Whitefield, rent 45000, near metro"
+
+# Verify a listing written in a file in clean mode
+python scripts/run_truth_teller.py --file path/to/listing.txt
 ```
+
+> [!TIP]
+> When running the interactive CLI loop, you can easily paste multi-line listing advertisements and press **[ENTER] twice** to submit them for instant agentic analysis. Type `exit` or `quit` on a blank line to end the interactive session.
+
 > [!NOTE]
 > The system automatically detects if active AWS keys or credentials are not present/dummy and triggers fallback to the high-fidelity `MockChatModel` and BM25 spatial geocoding caches, allowing seamless local integration testing out of the box!
 
