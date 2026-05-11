@@ -51,6 +51,13 @@ class MagicBricksBrowserCrawler:
             )
             page = context.new_page()
 
+            # Test connectivity
+            try:
+                page.goto("https://www.google.com", timeout=30000)
+                log.info("[Browser-Test] Google title: %s", page.title())
+            except Exception as e:
+                log.error("[Browser-Test] Failed to reach Google: %s", e)
+
             category = "rent" if tx_type == "rent" else "sale"
             
             # Always include the area slug itself
@@ -152,6 +159,13 @@ class NinetyAcresBrowserCrawler:
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             )
             page = context.new_page()
+
+            # Test connectivity
+            try:
+                page.goto("https://www.google.com", timeout=30000)
+                log.info("[Browser-Test] Google title: %s", page.title())
+            except Exception as e:
+                log.error("[Browser-Test] Failed to reach Google: %s", e)
 
             category = "rent" if tx_type == "rent" else "sale"
             url = f"https://www.99acres.com/property-for-{category}-in-{area.nintyacres_slug}"
