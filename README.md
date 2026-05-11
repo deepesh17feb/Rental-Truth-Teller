@@ -66,7 +66,7 @@ ES_API_KEY=your_base64_encoded_api_key
 
 # LLM Provider Settings (Options: gemini | bedrock | mock)
 LLM_PROVIDER=gemini
-GEMINI_API_KEY=AIzaSy...
+GEMINI_API_KEY=your_gemini_api_key
 GEMINI_MODEL=gemini-flash-latest
 
 # AWS Bedrock Settings (if LLM_PROVIDER=bedrock)
