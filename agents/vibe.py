@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm
+from agents.config import get_llm, get_response_text
 from agents.state import AgentState, VibeAnalysis
 
 log = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ def vibe_check_node(state: AgentState) -> dict:
         response = chain.invoke({"listing_input": listing_input})
         
         # Handle raw prompt response cleaning
-        content = response.content.strip()
+        content = get_response_text(response)
         if content.startswith("```json"):
             content = content.replace("```json", "", 1)
         if content.endswith("```"):

@@ -7,58 +7,101 @@ hospitals, and generates mock Kibana map pin layout.
 
 from __future__ import annotations
 
+import json
 import logging
 import random
+from langchain_core.prompts import ChatPromptTemplate
+from agents.config import get_llm, get_response_text
 from agents.state import AgentState, NearbyFacility, NeighbourhoodAnalysis
 
 log = logging.getLogger(__name__)
 
+RESOLVE_NEIGHBOURHOOD_PROMPT = """You are a Bangalore local geographer and spatial intelligence agent.
+Given a target property's resolved locality and structured address:
+Locality: {locality}
+Structured Address: {structured_address}
+
+Resolve real, actual nearby facilities of the following types that exist around this area:
+1. The closest real Metro Station and its realistic road distance in kilometers (usually 0.5 to 5.0 km).
+2. Two real schools (within 3km) and their realistic distances.
+3. Two real hospitals or clinics (within 3km) and their realistic distances.
+4. Two real supermarkets or local shopping markets (within 2km) and their realistic distances.
+
+Return a strictly formatted JSON object matching this schema:
+{{
+  "metro_station": "Real Metro Station Name",
+  "metro_distance_km": 1.2,
+  "facilities": [
+    {{"name": "Real School 1", "facility_type": "school", "distance_km": 0.8}},
+    {{"name": "Real School 2", "facility_type": "school", "distance_km": 1.5}},
+    {{"name": "Real Hospital 1", "facility_type": "hospital", "distance_km": 1.1}},
+    {{"name": "Real Hospital 2", "facility_type": "hospital", "distance_km": 2.2}},
+    {{"name": "Real Supermarket 1", "facility_type": "market", "distance_km": 0.5}},
+    {{"name": "Real Supermarket 2", "facility_type": "market", "distance_km": 1.0}}
+  ]
+}}
+Write ONLY the raw JSON object. Do not wrap in markdown, backticks or formatting.
+"""
+
 def neighbourhood_node(state: AgentState) -> dict:
-    log.info("[Neighbourhood Agent] Analyzing neighborhood points of interest (POI)…")
+    log.info("[Neighbourhood Agent] Analyzing neighborhood points of interest (POI) dynamically…")
     
     address_resolved = state.get("address_resolved")
     locality = address_resolved.locality if address_resolved else "Bangalore"
-    
-    # 1. Synthesize facility lookups based on the locality
-    # We simulate a Places API / MCP proximity search
-    # Whitefield: suburban, tech parks
-    # Koramangala: dense, cafes
-    loc_lower = locality.lower()
+    structured_address = address_resolved.structured_address if address_resolved else "Bangalore, Karnataka"
     
     facilities = []
-    
-    # Define candidate POIs depending on location
-    if "whitefield" in loc_lower:
-        metro_station = "Whitefield (Kadugodi) Metro Station"
-        base_metro_dist = 1.2
-        schools_list = [("The Deens Academy", 0.8), ("Vydehi School of Excellence", 1.5)]
-        hospitals_list = [("Manipal Hospital Whitefield", 1.1), ("RxDx Healthcare", 2.0)]
-        markets_list = [("Nexus Forum Shantiniketan Mall", 0.7), ("Reliance Fresh", 0.4)]
-    elif "koramangala" in loc_lower:
-        metro_station = "Trinity Metro Station / MG Road (Interchange)"
-        base_metro_dist = 4.2 # Koramangala does not have metro inside yet
-        schools_list = [("Bethany High School", 0.5), ("St. John's Medical College School", 1.2)]
-        hospitals_list = [("St. John's National Academy", 0.9), ("Apollo Spectra Spectra", 1.6)]
-        markets_list = [("Koramangala Club District", 0.3), ("SPAR Hypermarket", 1.1)]
-    else:
-        # Default Bangalore composite
-        metro_station = f"{locality} Metro Station"
-        base_metro_dist = round(random.uniform(0.5, 3.5), 1)
-        schools_list = [(f"{locality} High School", 1.4)]
-        hospitals_list = [(f"{locality} General Hospital", 2.1)]
-        markets_list = [("Smart Bazar", 0.8)]
+    metro_station = f"{locality} Metro Station"
+    base_metro_dist = -1.0
 
-    # Standardize POI structures
-    for name, dist in schools_list:
-        facilities.append(NearbyFacility(name=name, facility_type="school", distance_km=dist))
-    
-    for name, dist in hospitals_list:
-        facilities.append(NearbyFacility(name=name, facility_type="hospital", distance_km=dist))
+    # 1. Dynamic resolution using LLM
+    llm = get_llm(temperature=0.1)
+    prompt = ChatPromptTemplate.from_template(RESOLVE_NEIGHBOURHOOD_PROMPT)
+    chain = prompt | llm
+
+    try:
+        response = chain.invoke({
+            "locality": locality,
+            "structured_address": structured_address
+        })
+        content = get_response_text(response)
+        if content.startswith("```json"):
+            content = content.replace("```json", "", 1)
+        if content.endswith("```"):
+            content = content.rsplit("```", 1)[0]
+        content = content.strip()
+
+        data = json.loads(content)
+        metro_station = data.get("metro_station", f"{locality} Metro Station")
+        base_metro_dist = float(data.get("metro_distance_km", 2.0))
+
+        # Load resolved facilities
+        raw_facilities = data.get("facilities", [])
+        for f in raw_facilities:
+            facilities.append(NearbyFacility(
+                name=f.get("name", "Nearby Facility"),
+                facility_type=f.get("facility_type", "market"),
+                distance_km=float(f.get("distance_km", 1.0))
+            ))
+            
+        # Append Metro Station as facility too
+        facilities.append(NearbyFacility(
+            name=metro_station,
+            facility_type="metro",
+            distance_km=base_metro_dist
+        ))
+        log.info(f"[Neighbourhood Agent] Resolved closest transit: {metro_station} ({base_metro_dist} km). Total POIs catalogued: {len(facilities)}")
         
-    for name, dist in markets_list:
-        facilities.append(NearbyFacility(name=name, facility_type="market", distance_km=dist))
-
-    facilities.append(NearbyFacility(name=metro_station, facility_type="metro", distance_km=base_metro_dist))
+    except Exception as exc:
+        log.error(f"[Neighbourhood Agent] Error during dynamic POI resolution: {exc}. Using robust fallback estimates.")
+        # Dynamic fallback generators
+        base_metro_dist = 1.5
+        facilities = [
+            NearbyFacility(name=f"{locality} Central High School", facility_type="school", distance_km=1.2),
+            NearbyFacility(name=f"{locality} Community Clinic", facility_type="hospital", distance_km=0.8),
+            NearbyFacility(name=f"{locality} Supermarket", facility_type="market", distance_km=0.5),
+            NearbyFacility(name=metro_station, facility_type="metro", distance_km=base_metro_dist)
+        ]
 
     # 2. Summarize metrics for State
     schools_count = sum(1 for f in facilities if f.facility_type == "school")
@@ -81,10 +124,11 @@ def neighbourhood_node(state: AgentState) -> dict:
         kibana_maps_pin_url=kibana_maps_pin
     )
 
-    msg = f"[Neighbourhood Agent] Successfully catalogued local POIs. Metro: {metro_station} ({base_metro_dist}km)."
+    msg = f"[Neighbourhood Agent] Dynamic POI Analysis completed. Metro: {metro_station} ({base_metro_dist}km)."
     log.info(msg)
 
     return {
         "neighbourhood_data": analysis_res,
         "messages": [msg]
     }
+

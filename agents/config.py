@@ -18,43 +18,96 @@ log = logging.getLogger(__name__)
 
 from langchain_core.outputs import ChatResult
 
+def get_response_text(response) -> str:
+    """Extracts string text safely from response content, handling both string and list formats."""
+    content = response.content
+    if isinstance(content, list):
+        parts = []
+        for part in content:
+            if isinstance(part, dict) and "text" in part:
+                parts.append(part["text"])
+            elif isinstance(part, str):
+                parts.append(part)
+            elif hasattr(part, "text"):
+                parts.append(part.text)
+        return "".join(parts).strip()
+    return str(content).strip()
+
+
 class ResilientChatModel(BaseChatModel):
     real_model: BaseChatModel
     mock_model: BaseChatModel
     use_mock: bool = False
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs) -> ChatResult:
+        # Log the raw prompt/request messages dynamically
+        prompt_str = ""
+        for m in messages:
+            role = m.type.upper() if hasattr(m, "type") else "USER"
+            prompt_str += f"\n--- {role} MESSAGE ---\n{m.content}\n"
+        log.info(f"[LLM Request Prompt]:{prompt_str}")
+
         if self.use_mock:
-            return self.mock_model._generate(messages, stop, run_manager, **kwargs)
+            res = self.mock_model._generate(messages, stop, run_manager, **kwargs)
+            try:
+                log.info(f"[Mock LLM Response Content]:\n{res.generations[0].text}")
+            except Exception:
+                pass
+            return res
         try:
-            return self.real_model._generate(messages, stop, run_manager, **kwargs)
+            res = self.real_model._generate(messages, stop, run_manager, **kwargs)
+            try:
+                log.info(f"[Actual LLM Response Content]:\n{res.generations[0].text}")
+            except Exception:
+                pass
+            return res
         except Exception as e:
-            log.error(f"AWS Bedrock runtime invocation failed: {e}. Automatically falling back to MockChatModel for execution.")
+            log.error(f"LLM runtime invocation failed: {e}. Automatically falling back to MockChatModel for execution.")
             self.use_mock = True
-            return self.mock_model._generate(messages, stop, run_manager, **kwargs)
+            res = self.mock_model._generate(messages, stop, run_manager, **kwargs)
+            try:
+                log.info(f"[Mock Fallback LLM Response Content]:\n{res.generations[0].text}")
+            except Exception:
+                pass
+            return res
 
     @property
     def _llm_type(self) -> str:
         return "resilient-chat-model"
 
-# ── AWS Bedrock Initialization ─────────────────────────────────────────────────
+# ── LLM Client Initialization (Gemini + Bedrock + Fallback Mock) ────────────────
 def get_llm(temperature: float = 0.1) -> BaseChatModel:
     """
-    Returns the AWS Bedrock Claude chat model.
-    Falls back to a simple mock model or env indicators for local-only execution if AWS credentials lack.
+    Returns the configured LLM Chat Model (Gemini or AWS Bedrock Claude).
+    Falls back to a high-fidelity MockChatModel if credentials are missing or LLM_PROVIDER is 'mock'.
     """
+    provider = os.environ.get("LLM_PROVIDER", "gemini").lower().strip()
     aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
     
-    # Check if we have valid AWS credentials or mock flag
+    # Check credentials
+    has_gemini_creds = bool(os.environ.get("GEMINI_API_KEY"))
+    
     aws_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
-    aws_secret = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
-    has_real_credentials = (
+    has_aws_creds = (
         aws_key != "" or 
         os.environ.get("AWS_CONTAINER_CREDENTIALS_RELATIVE_URI") is not None or
         os.environ.get("AWS_BEARER_TOKEN_BEDROCK") is not None
     )
     
-    use_mock = True
+    use_mock = False
+    if provider == "mock":
+        use_mock = True
+    elif provider == "gemini":
+        if not has_gemini_creds:
+            log.warning("LLM_PROVIDER is set to 'gemini' but GEMINI_API_KEY is missing. Falling back to MockChatModel.")
+            use_mock = True
+    elif provider == "bedrock":
+        if not has_aws_creds:
+            log.warning("LLM_PROVIDER is set to 'bedrock' but AWS credentials are missing. Falling back to MockChatModel.")
+            use_mock = True
+    else:
+        log.warning(f"Unknown LLM_PROVIDER '{provider}'. Defaulting to MockChatModel.")
+        use_mock = True
 
     from langchain_core.language_models.chat_models import SimpleChatModel
     from langchain_core.messages import BaseMessage, AIMessage
@@ -235,20 +288,33 @@ def get_llm(temperature: float = 0.1) -> BaseChatModel:
             return "mock-chat-model"
 
     if use_mock:
-        log.warning("Returning MockChatModel for local/integration execution.")
-        return MockChatModel()
+        log.warning("Returning MockChatModel wrapped in ResilientChatModel for local execution.")
+        mock_instance = MockChatModel()
+        return ResilientChatModel(real_model=mock_instance, mock_model=mock_instance, use_mock=True)
 
     try:
-        model = ChatBedrock(
-            model_id="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            region_name=aws_region,
-            model_kwargs={"temperature": temperature},
-        )
-        # Return resilient model wrapper to automatically handle Amazon client errors
-        return ResilientChatModel(real_model=model, mock_model=MockChatModel())
+        if provider == "gemini":
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            model_name = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
+            log.info(f"Initializing ChatGoogleGenerativeAI with model: {model_name}")
+            model = ChatGoogleGenerativeAI(
+                model=model_name,
+                temperature=temperature,
+                google_api_key=os.environ.get("GEMINI_API_KEY"),
+            )
+        else:
+            log.info("Initializing ChatBedrock with model: anthropic.claude-3-sonnet-20240229-v1:0")
+            model = ChatBedrock(
+                model_id="anthropic.claude-3-sonnet-20240229-v1:0",
+                region_name=aws_region,
+                model_kwargs={"temperature": temperature},
+            )
+        # Return resilient model wrapper to automatically handle client/network errors
+        return ResilientChatModel(real_model=model, mock_model=MockChatModel(), use_mock=False)
     except Exception as e:
-        log.error(f"Failed to initialize Bedrock Chat model: {e}. Falling back to MockChatModel.")
-        return MockChatModel()
+        log.error(f"Failed to initialize {provider.capitalize()} Chat model: {e}. Falling back to MockChatModel wrapper.")
+        mock_instance = MockChatModel()
+        return ResilientChatModel(real_model=mock_instance, mock_model=mock_instance, use_mock=True)
 
 
 # ── Elasticsearch Initialization ───────────────────────────────────────────────

@@ -18,7 +18,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*allowed_objects.*")
 
 # Configure root path mapping so python can locate config and agents modules
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 # Configure dual logging to both console and a dedicated backend.log file
 log_formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s - %(message)s")
@@ -31,9 +31,9 @@ console_handler.setFormatter(log_formatter)
 console_handler.setLevel(logging.ERROR)
 root_logger.addHandler(console_handler)
 
-# Dedicated Backend File Handler (captures all INFO, warnings, and diagnostics behind the scenes)
-backend_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "backend.log"))
-file_handler = logging.FileHandler(backend_log_path, mode="w")
+# Dedicated CLI File Handler (captures all INFO, warnings, and diagnostics behind the scenes)
+cli_log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../..", "cli.log"))
+file_handler = logging.FileHandler(cli_log_path, mode="w")
 file_handler.setFormatter(log_formatter)
 root_logger.addHandler(file_handler)
 

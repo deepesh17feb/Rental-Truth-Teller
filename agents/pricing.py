@@ -11,7 +11,7 @@ import json
 import logging
 import math
 from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm, get_elasticsearch_client
+from agents.config import get_llm, get_elasticsearch_client, get_response_text
 from agents.state import AgentState, PricingAnalysis
 
 log = logging.getLogger(__name__)
@@ -31,6 +31,21 @@ Return a strictly formatted JSON object:
   "area_sqft": float_value_or_null
 }}
 Write ONLY the raw JSON object and nothing else.
+"""
+
+ESTIMATE_BENCHMARKS_PROMPT = """You are a Bangalore real estate pricing intelligence analyst.
+Given a locality in Bangalore, estimate realistic market pricing benchmarks:
+1. The typical average rent rate in INR per SqFt (e.g. 35.0 to 65.0).
+2. A realistic standard deviation in INR per SqFt for pricing variance in this locality (usually between 4.0 and 10.0).
+
+Locality: {locality}
+
+Return a strictly formatted JSON object:
+{{
+  "avg_price_per_sqft": float_value,
+  "std_price_per_sqft": float_value
+}}
+Write ONLY the raw JSON block. Do not wrap in markdown, backticks or formatting.
 """
 
 def pricing_node(state: AgentState) -> dict:
@@ -53,7 +68,7 @@ def pricing_node(state: AgentState) -> dict:
     
     try:
         response = chain.invoke({"listing_input": listing_input})
-        content = response.content.strip()
+        content = get_response_text(response)
         if content.startswith("```json"):
             content = content.replace("```json", "", 1)
         if content.endswith("```"):
@@ -69,34 +84,21 @@ def pricing_node(state: AgentState) -> dict:
     except Exception as e:
         log.error(f"[Pricing Agent] Financial extraction parsing exception: {e}")
 
-    # 2. Local market benchmarks by region (Used as fallback if ES contains no comparables or is empty)
+    # 2. Local market benchmarks: Resolve locality
     locality = address_resolved.locality if address_resolved else ""
     if not locality and address_resolved:
         locality = address_resolved.structured_address.split(",")[0]
+    if not locality:
+        locality = "Bangalore"
         
-    # Default Bangalore rates by area (per sqft in INR)
-    default_avg_map = {
-        "whitefield": {"avg": 35.0, "std": 6.0},
-        "koramangala": {"avg": 52.0, "std": 8.0},
-        "indiranagar": {"avg": 58.0, "std": 9.5},
-        "bellandur": {"avg": 39.0, "std": 5.5},
-        "hsr": {"avg": 42.0, "std": 7.0},
-    }
-    
-    norm_key = locality.lower().strip() if locality else ""
     market_avg = 40.0
     market_std = 7.0
-    for key, val in default_avg_map.items():
-        if key in norm_key:
-            market_avg = val["avg"]
-            market_std = val["std"]
-            break
+    fetched_from_es = False
 
     # 3. Query Elasticsearch for actual listing comparables
     es_ratings = []
     try:
         es = get_elasticsearch_client()
-        # Query matching properties within the locality using fuzzy or keyword
         search_body = {
             "query": {
                 "bool": {
@@ -104,8 +106,8 @@ def pricing_node(state: AgentState) -> dict:
                         {"match": {"transaction_type": "rent"}},
                     ],
                     "should": [
-                        {"match": {"area": locality if locality else "Bangalore"}},
-                        {"match": {"address": locality if locality else "Bangalore"}}
+                        {"match": {"area": locality}},
+                        {"match": {"address": locality}}
                     ]
                 }
             },
@@ -123,16 +125,38 @@ def pricing_node(state: AgentState) -> dict:
                 es_ratings.append(float(rent) / float(sqft))
                 
         if len(es_ratings) > 2:
-            # Calculate actual elasticsearch comparables mean and stddev
             market_avg = sum(es_ratings) / len(es_ratings)
             variance = sum((x - market_avg) ** 2 for x in es_ratings) / len(es_ratings)
             market_std = math.sqrt(variance) if variance > 0 else 1.0
+            fetched_from_es = True
             log.info(f"[Pricing Agent] ES search matched {len(es_ratings)} comparables. Calculated Mean Rate: Rs.{market_avg:.2f}/sqft, StdDev: {market_std:.2f}")
         else:
-            log.info(f"[Pricing Agent] Insufficient ES comparables found ({len(es_ratings)}). Using region-based fallback metrics for `{locality}` (Avg: Rs.{market_avg}/sqft).")
+            log.info(f"[Pricing Agent] Insufficient ES comparables found ({len(es_ratings)}). Querying LLM for dynamic baseline metrics.")
 
     except Exception as exc:
-        log.warning(f"[Pricing Agent] Elasticsearch connection was bypassed or failed: {exc}. Using generic regional benchmarks.")
+        log.warning(f"[Pricing Agent] Elasticsearch connection failed: {exc}. Querying LLM for dynamic benchmarks.")
+
+    # Fallback to dynamic LLM benchmark resolution if ES search was sparse or failed
+    if not fetched_from_es:
+        try:
+            prompt = ChatPromptTemplate.from_template(ESTIMATE_BENCHMARKS_PROMPT)
+            chain = prompt | llm
+            response = chain.invoke({"locality": locality})
+            content = get_response_text(response)
+            if content.startswith("```json"):
+                content = content.replace("```json", "", 1)
+            if content.endswith("```"):
+                content = content.rsplit("```", 1)[0]
+            content = content.strip()
+            
+            benchmarks = json.loads(content)
+            market_avg = float(benchmarks.get("avg_price_per_sqft", 40.0))
+            market_std = float(benchmarks.get("std_price_per_sqft", 7.0))
+            log.info(f"[Pricing Agent] Resolved benchmarks dynamically via LLM for `{locality}` -> Avg: Rs.{market_avg}/sqft, StdDev: {market_std}")
+        except Exception as e:
+            log.error(f"[Pricing Agent] Failed to fetch dynamic pricing benchmarks via LLM: {e}. Using global defaults.")
+            market_avg = 40.0
+            market_std = 7.0
 
     # 4. Process pricing parameters
     curr_price_per_sqft = None

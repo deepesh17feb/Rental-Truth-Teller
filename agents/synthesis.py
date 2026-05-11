@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm, rerank_listings
+from agents.config import get_llm, rerank_listings, get_response_text
 from agents.state import AgentState, VerdictCard
 
 log = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ def synthesis_node(state: AgentState) -> dict:
             "neighbourhood_data": neighbourhood_data.model_dump() if neighbourhood_data else {},
         })
         
-        content = response.content.strip()
+        content = get_response_text(response)
         if content.startswith("```json"):
             content = content.replace("```json", "", 1)
         if content.endswith("```"):

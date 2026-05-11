@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm
+from agents.config import get_llm, get_response_text
 from agents.state import AgentState, AddressResolved, GeoPoint
 
 log = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def supervisor_node(state: AgentState) -> dict:
 
     try:
         response = chain.invoke({"listing_input": listing_input})
-        content = response.content.strip()
+        content = get_response_text(response)
         if content.startswith("```json"):
             content = content.replace("```json", "", 1)
         if content.endswith("```"):
@@ -64,26 +64,16 @@ def supervisor_node(state: AgentState) -> dict:
         
         data = json.loads(content)
         
-        # Map geocoordinate defaults if zero
-        lat = data.get("lat", 12.9716)
-        lon = data.get("lon", 77.5946)
-        
-        # Fallback helper
+        # Rely directly on coordinates from LLM resolution, or default to Bangalore Center
+        lat = float(data.get("lat", 12.9716))
+        lon = float(data.get("lon", 77.5946))
         locality = data.get("locality", "Whitefield")
-        if not lat or lat == 12.9716:
-            # Coordinate maps fallback
-            if "whitefield" in locality.lower():
-                lat, lon = 12.9698, 77.7500
-            elif "koramangala" in locality.lower():
-                lat, lon = 12.9352, 77.6244
-            elif "indiranagar" in locality.lower():
-                lat, lon = 12.9784, 77.6408
 
         resolved = AddressResolved(
             raw_address=listing_input[:100],
             structured_address=data.get("structured_address", ""),
             locality=locality,
-            geo=GeoPoint(lat=float(lat), lon=float(lon)),
+            geo=GeoPoint(lat=lat, lon=lon),
             confidence=0.9
         )
         

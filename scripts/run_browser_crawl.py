@@ -68,8 +68,15 @@ class MagicBricksBrowserCrawler:
             for loc_name in localities:
                 log.info("[MagicBricks-Browser] Starting %s | %s", loc_name, tx_type)
                 
-                # Use a more robust search URL
-                url = f"https://www.magicbricks.com/property-for-{category}/residential-real-estate?cityName=Bangalore&localityName={loc_name.replace(' ', '%20')}"
+                # Robust path-based route construction for exact locality matching
+                slug = loc_name
+                if slug.lower().endswith("-bangalore"):
+                    slug = slug[:-10]
+                elif slug.lower().endswith(" bangalore"):
+                    slug = slug[:-10]
+                
+                slug_formatted = slug.replace(" ", "-")
+                url = f"https://www.magicbricks.com/property-for-{category}/residential-real-estate-{slug_formatted}-in-Bangalore"
                 
                 try:
                     page.goto(url, wait_until="networkidle", timeout=60000)
