@@ -7,46 +7,15 @@ using hybrid Elasticsearch search.
 
 from __future__ import annotations
 
-import json
 import logging
 import math
 from langchain_core.prompts import ChatPromptTemplate
 from agents.config import get_llm, get_elasticsearch_client, get_response_text
+from agents.prompts import EXTRACT_FINANCIALS_PROMPT, ESTIMATE_BENCHMARKS_PROMPT
 from agents.state import AgentState, PricingAnalysis
+from agents.utils import parse_json_from_llm
 
 log = logging.getLogger(__name__)
-
-EXTRACT_FINANCIALS_PROMPT = """You are a property financial extractor. Given the raw property description, extract:
-1. Monthly Rent in INR.
-2. Security Deposit in INR.
-3. Property Area in SqFt.
-
-Raw listing content:
-{listing_input}
-
-Return a strictly formatted JSON object:
-{{
-  "rent": float_value_or_zero,
-  "deposit": float_value_or_zero,
-  "area_sqft": float_value_or_null
-}}
-Write ONLY the raw JSON object and nothing else.
-"""
-
-ESTIMATE_BENCHMARKS_PROMPT = """You are a Bangalore real estate pricing intelligence analyst.
-Given a locality in Bangalore, estimate realistic market pricing benchmarks:
-1. The typical average rent rate in INR per SqFt (e.g. 35.0 to 65.0).
-2. A realistic standard deviation in INR per SqFt for pricing variance in this locality (usually between 4.0 and 10.0).
-
-Locality: {locality}
-
-Return a strictly formatted JSON object:
-{{
-  "avg_price_per_sqft": float_value,
-  "std_price_per_sqft": float_value
-}}
-Write ONLY the raw JSON block. Do not wrap in markdown, backticks or formatting.
-"""
 
 def pricing_node(state: AgentState) -> dict:
     log.info("[Pricing Agent] Analyzing Pricing, Deposit Norms, & Price Drift…")
@@ -69,13 +38,8 @@ def pricing_node(state: AgentState) -> dict:
     try:
         response = chain.invoke({"listing_input": listing_input})
         content = get_response_text(response)
-        if content.startswith("```json"):
-            content = content.replace("```json", "", 1)
-        if content.endswith("```"):
-            content = content.rsplit("```", 1)[0]
-        content = content.strip()
+        financials = parse_json_from_llm(content)
         
-        financials = json.loads(content)
         curr_rent = float(financials.get("rent", 0.0))
         curr_deposit = float(financials.get("deposit", 0.0))
         curr_area = financials.get("area_sqft")
@@ -143,13 +107,8 @@ def pricing_node(state: AgentState) -> dict:
             chain = prompt | llm
             response = chain.invoke({"locality": locality})
             content = get_response_text(response)
-            if content.startswith("```json"):
-                content = content.replace("```json", "", 1)
-            if content.endswith("```"):
-                content = content.rsplit("```", 1)[0]
-            content = content.strip()
+            benchmarks = parse_json_from_llm(content)
             
-            benchmarks = json.loads(content)
             market_avg = float(benchmarks.get("avg_price_per_sqft", 40.0))
             market_std = float(benchmarks.get("std_price_per_sqft", 7.0))
             log.info(f"[Pricing Agent] Resolved benchmarks dynamically via LLM for `{locality}` -> Avg: Rs.{market_avg}/sqft, StdDev: {market_std}")

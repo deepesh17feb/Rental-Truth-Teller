@@ -7,32 +7,15 @@ from raw listing input text to populate shared agent parameters.
 
 from __future__ import annotations
 
-import json
 import logging
 from langchain_core.prompts import ChatPromptTemplate
 from agents.config import get_llm, get_response_text
+from agents.prompts import GEOCODE_PROMPT
 from agents.state import AgentState, AddressResolved, GeoPoint
+from agents.fallbacks import fallback_address_resolution
+from agents.utils import parse_json_from_llm
 
 log = logging.getLogger(__name__)
-
-GEOCODE_PROMPT = """You are a Bangalore spatial resolver agent.
-Analyze the given rental property listing content and extract:
-1. The target locality or area in Bangalore (e.g. Whitefield, Koramangala, Indiranagar, HSR Layout).
-2. A cleaned, structured address.
-3. A sensible latitude/longitude geopoint estimate for this locality in Bangalore.
-
-Raw Listing Content:
-{listing_input}
-
-Return a strictly formatted JSON:
-{{
-  "locality": "Locality Name",
-  "structured_address": "Cleaned Address, Bangalore, Karnataka",
-  "lat": 12.9716, // estimated latitude
-  "lon": 77.5946  // estimated longitude
-}}
-Ensure you write ONLY the raw JSON block. Do not wrap in markdown codeblocks.
-"""
 
 def supervisor_node(state: AgentState) -> dict:
     log.info("[Supervisor Agent] Resolving address & geocoding listing…")
@@ -56,13 +39,7 @@ def supervisor_node(state: AgentState) -> dict:
     try:
         response = chain.invoke({"listing_input": listing_input})
         content = get_response_text(response)
-        if content.startswith("```json"):
-            content = content.replace("```json", "", 1)
-        if content.endswith("```"):
-            content = content.rsplit("```", 1)[0]
-        content = content.strip()
-        
-        data = json.loads(content)
+        data = parse_json_from_llm(content)
         
         # Rely directly on coordinates from LLM resolution, or default to Bangalore Center
         lat = float(data.get("lat", 12.9716))
@@ -85,15 +62,4 @@ def supervisor_node(state: AgentState) -> dict:
         }
     except Exception as e:
         log.error(f"[Supervisor Agent] Address resolution parsing error: {e}")
-        # Fallback geocoding
-        fallback = AddressResolved(
-            raw_address=listing_input[:100],
-            structured_address="Whitefield, Bangalore, Karnataka",
-            locality="Whitefield",
-            geo=GeoPoint(lat=12.9698, lon=77.7500),
-            confidence=0.4
-        )
-        return {
-            "address_resolved": fallback,
-            "messages": [f"[Supervisor Agent] Geocoding fallback used: {str(e)}"]
-        }
+        return fallback_address_resolution(listing_input, str(e))

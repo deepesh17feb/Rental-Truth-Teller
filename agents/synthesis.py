@@ -7,41 +7,15 @@ to compile the final Verdict Card and custom broker questionnaire.
 
 from __future__ import annotations
 
-import json
 import logging
 from langchain_core.prompts import ChatPromptTemplate
 from agents.config import get_llm, rerank_listings, get_response_text
+from agents.prompts import SYNTHESIS_PROMPT
 from agents.state import AgentState, VerdictCard
+from agents.fallbacks import fallback_synthesis
+from agents.utils import parse_json_from_llm
 
 log = logging.getLogger(__name__)
-
-SYNTHESIS_PROMPT = """You are the "Synthesis Agent" in a rental validation multi-agent network.
-Collect all preceding sub-agent analyses and synthesize them into a consolidated "Verdict Card" report.
-
-Context data:
-- Address Resolved: {address_resolved}
-- Price Analysis: {pricing_data}
-- Vibe & Rules: {vibe_data}
-- Neighborhood & Metro proximity: {neighbourhood_data}
-
-Output parameters required:
-1. Overpriced Percentage: directly mapped or adjusted from Price Analysis.
-2. Red Flags list: Gather extreme prices, strict lease terms (e.g. high deposit, bachelors penalty, veg-only restrictions) or POI deficiencies (e.g. no metro within 3km).
-3. Broker Questionnaire: 4 key critical/clever questions to ask the broker or owner based on discrepancies OR constraints identified here.
-4. Fair Range: Return a dynamic estimates minimum and maximum rate (e.g., average rent +/- 10%).
-5. Neighbourhood Score: Compute a score from 0 to 10 based on POIs (Metro < 1.5km adds 4 pts, School > 0 adds 2 pts, Hospital > 0 adds 2 pts, Market > 0 adds 2 pts).
-
-Return a strictly formatted JSON object matching this schema:
-{{
-  "fair_range_min": 32000.0,
-  "fair_range_max": 38000.0,
-  "overpriced_percentage": 12.5,
-  "red_flags": ["example flag 1", "example flag 2"],
-  "neighbourhood_score": 8.0,
-  "broker_questionnaire": ["question 1", "question 2"]
-}}
-Provide ONLY the raw JSON response.
-"""
 
 def synthesis_node(state: AgentState) -> dict:
     log.info("[Synthesis Agent] Constructing final Verdict Card & Reranking comparables…")
@@ -82,13 +56,7 @@ def synthesis_node(state: AgentState) -> dict:
         })
         
         content = get_response_text(response)
-        if content.startswith("```json"):
-            content = content.replace("```json", "", 1)
-        if content.endswith("```"):
-            content = content.rsplit("```", 1)[0]
-        content = content.strip()
-
-        data = json.loads(content)
+        data = parse_json_from_llm(content)
         
         verdict = VerdictCard(
             fair_range_min=data.get("fair_range_min", rent * 0.9),
@@ -115,17 +83,5 @@ def synthesis_node(state: AgentState) -> dict:
         
     except Exception as e:
         log.error(f"[Synthesis Agent] Error executing synthesis LLM: {e}")
-        # Simple fallback
-        flat_verdict = VerdictCard(
-            fair_range_min=rent * 0.85,
-            fair_range_max=rent * 1.15,
-            overpriced_percentage=pricing_data.overpriced_percentage if pricing_data else 0.0,
-            total_upfront_cost=total_upfront_cost,
-            red_flags=["Failed to run composite synthesis, showing structural pricing alerts only."],
-            neighbourhood_score=6.0,
-            broker_questionnaire=["Why does the landlord charge this amount of rent?"]
-        )
-        return {
-            "final_verdict": flat_verdict,
-            "messages": [f"[Synthesis Agent] Synthesis error fallback: {str(e)}"]
-        }
+        overpriced = pricing_data.overpriced_percentage if pricing_data else 0.0
+        return fallback_synthesis(rent, overpriced, total_upfront_cost, str(e))
