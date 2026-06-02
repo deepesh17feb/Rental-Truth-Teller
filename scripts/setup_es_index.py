@@ -20,17 +20,16 @@ Re-run any time you change the mapping (new fields are added safely).
 from __future__ import annotations
 
 import sys
-import time
 import logging
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+
 from elasticsearch import Elasticsearch, exceptions as es_exc
 from config.settings import config
 from config.es_client import build_es_client
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger("setup_es_index")
 
 # ─────────────────────────────────────────────────────────────────────────────

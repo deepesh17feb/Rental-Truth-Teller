@@ -17,15 +17,15 @@ from pathlib import Path
 # Allow imports from project root
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config.settings import config
-from config.es_client import build_es_client
-from elasticsearch import helpers
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
     datefmt="%H:%M:%S",
 )
+
+from elasticsearch import helpers
+from config.settings import config
+from config.es_client import build_es_client
 log = logging.getLogger("index_mock_data")
 
 def main():

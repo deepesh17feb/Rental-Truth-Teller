@@ -1,0 +1,2 @@
+#!/bin/bash
+pylint --disable=all --enable=W0611,C0411,C0413,C0415,W0718,W1514 crawler/spiders/magicbricks_spider.py crawler/spiders/nintyacres_spider.py crawler/utils/parsers.py rendering/cli/run_truth_teller.py rendering/ui/app.py scripts/deploy_elser.py scripts/generate_mock_data.py scripts/index_mock_data.py scripts/run_browser_crawl.py scripts/run_crawl.py scripts/scheduler.py scripts/setup_es_index.py tests/test_items.py

@@ -36,11 +36,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
+
 from elasticsearch import Elasticsearch, exceptions as es_exc
 from config.settings import config
 from config.es_client import build_es_client
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s | %(message)s")
 log = logging.getLogger("deploy_elser")
 
 INFERENCE_ID = config.ELSER_INFERENCE_ID
