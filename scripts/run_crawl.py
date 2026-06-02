@@ -39,6 +39,11 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+from config.settings import config
+from config.areas import TARGET_AREAS
+from crawler.items import PropertyItem
+from crawler.simple_crawler import MagicBricksCrawler, NinetyAcresCrawler, _build_session
+
 log = logging.getLogger("run_crawl")
 
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"
