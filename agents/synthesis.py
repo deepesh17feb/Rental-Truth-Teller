@@ -105,11 +105,15 @@ def synthesis_node(state: AgentState) -> dict:
             # pylint: disable=unsupported-membership-test
             if pricing_data.price_drift_flag and "High price variance detected (above local average)" not in verdict.red_flags:
                 # pylint: enable=unsupported-membership-test
-                verdict.red_flags = verdict.red_flags + ["Property pricing is majorly drifted from local comparable averages."]
+                # pylint: disable=unsupported-membership-test,no-member
+                verdict.red_flags.append("Property pricing is majorly drifted from local comparable averages.")
+                # pylint: enable=unsupported-membership-test,no-member
             # pylint: disable=unsupported-membership-test
             if not pricing_data.deposit_is_normal and "Deceptive deposit expectation (>10 months landlord deposit)" not in verdict.red_flags:
                 # pylint: enable=unsupported-membership-test
-                verdict.red_flags = verdict.red_flags + [f"Security deposit demands are high ({pricing_data.deposit_multiplier}x rent)."]
+                # pylint: disable=unsupported-membership-test,no-member
+                verdict.red_flags.append(f"Security deposit demands are high ({pricing_data.deposit_multiplier}x rent).")
+                # pylint: enable=unsupported-membership-test,no-member
                 
         log.info("[Synthesis Agent] Final Verdict Card generated.")
         return {

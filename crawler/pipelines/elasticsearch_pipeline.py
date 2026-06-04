@@ -159,8 +159,9 @@ class ElasticsearchPipeline:
 
             if errors:
                 self._stats["errors"] += len(errors)
-                errors = list(errors) if isinstance(errors, (list, tuple)) or hasattr(errors, "__iter__") and not isinstance(errors, dict) else errors
-                for err in (list(errors)[:5] if isinstance(errors, (list, tuple)) or hasattr(errors, "__iter__") else []):
+                # pylint: disable=unsubscriptable-object
+                for err in errors[:5]:
+                # pylint: enable=unsubscriptable-object
                     # Surface the actual ES error reason if available
                     reason = (
                         err.get("index", {})

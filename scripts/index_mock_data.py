@@ -79,8 +79,9 @@ def main():
         )
         log.info("Bulk indexing successful! Indexed = %d, Errors = %d", ok, len(errors) if errors else 0)
         if errors:
-            errors_list = list(errors) if hasattr(errors, "__iter__") and not isinstance(errors, dict) else errors
-            log.error("First error encountered: %s", list(errors_list)[0] if (isinstance(errors_list, (list, tuple)) or hasattr(errors_list, "__iter__")) and len(list(errors_list)) > 0 else "unknown")
+            # pylint: disable=unsubscriptable-object
+            log.error("First error encountered: %s", errors[0])
+            # pylint: enable=unsubscriptable-object
     except Exception as e:
         log.error("Failed bulk-indexing: %s", e)
         sys.exit(1)
