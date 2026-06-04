@@ -139,7 +139,9 @@ class ESWriter:
             self._stats["indexed"] += ok
             if errors:
                 self._stats["errors"] += len(errors)
-                reason = errors[0].get("index", {}).get("error", {}).get("reason", str(errors[0]))
+                errors = list(errors) if hasattr(errors, "__iter__") and not isinstance(errors, dict) else errors
+                err = list(errors)[0] if (isinstance(errors, (list, tuple)) or hasattr(errors, "__iter__")) and list(errors) else {}
+                reason = err.get("index", {}).get("error", {}).get("reason", str(err)) if isinstance(err, dict) else str(err)
                 log.error("ES bulk error (first): %s", reason)
             log.info("ES flushed → +%d indexed  (total=%d  errors=%d)",
                      ok, self._stats["indexed"], self._stats["errors"])

@@ -178,7 +178,7 @@ def _warm_up(es: Elasticsearch) -> None:
                 return
             else:
                 log.warning("Empty ELSER response on attempt %d.", attempt)
-        except (es_exc.ServiceUnavailableError, es_exc.ConnectionError):
+        except (es_exc.TransportError, es_exc.ConnectionError):
             pass
         except Exception as exc:
             log.debug("Probe attempt %d: %s", attempt, exc)

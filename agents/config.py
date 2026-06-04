@@ -361,8 +361,12 @@ def rerank_listings(query: str, listings: list[dict], top_k: int = 3) -> list[di
         return [lst for _, lst in scored[:top_k]]
 
     try:
+        # pylint: disable=import-error
         from jina_reranker_client import RerankerClient
+        # pylint: enable=import-error
+        # pylint: disable=undefined-variable
         client = RerankerClient(api_key=jina_api_key)
+        # pylint: enable=undefined-variable
         # Format documents for Jina reranker
         documents = [
             {"id": idx, "text": f"{lst.get('title', '')} - {lst.get('description', '')} at {lst.get('address', '')}"}

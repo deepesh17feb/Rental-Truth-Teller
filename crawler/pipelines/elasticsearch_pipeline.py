@@ -159,7 +159,8 @@ class ElasticsearchPipeline:
 
             if errors:
                 self._stats["errors"] += len(errors)
-                for err in errors[:5]:
+                errors = list(errors) if isinstance(errors, (list, tuple)) or hasattr(errors, "__iter__") and not isinstance(errors, dict) else errors
+                for err in (list(errors)[:5] if isinstance(errors, (list, tuple)) or hasattr(errors, "__iter__") else []):
                     # Surface the actual ES error reason if available
                     reason = (
                         err.get("index", {})
