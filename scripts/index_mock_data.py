@@ -79,7 +79,9 @@ def main():
         )
         log.info("Bulk indexing successful! Indexed = %d, Errors = %d", ok, len(errors) if errors else 0)
         if errors:
+            # pylint: disable=unsubscriptable-object
             log.error("First error encountered: %s", errors[0])
+            # pylint: enable=unsubscriptable-object
     except Exception as e:
         log.error("Failed bulk-indexing: %s", e)
         sys.exit(1)

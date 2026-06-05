@@ -159,7 +159,9 @@ class ElasticsearchPipeline:
 
             if errors:
                 self._stats["errors"] += len(errors)
+                # pylint: disable=unsubscriptable-object
                 for err in errors[:5]:
+                # pylint: enable=unsubscriptable-object
                     # Surface the actual ES error reason if available
                     reason = (
                         err.get("index", {})

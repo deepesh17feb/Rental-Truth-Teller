@@ -338,43 +338,26 @@ def get_elasticsearch_client() -> Elasticsearch:
 # ── Jina Reranker / Rerank Mock ────────────────────────────────────────────────
 def rerank_listings(query: str, listings: list[dict], top_k: int = 3) -> list[dict]:
     """
-    Uses Jina Rerank to find the closest fitting properties.
-    Falls back to scoring by string metrics if Jina credentials are not set.
+    Scores properties by string metrics (fallback BM25-alike).
     """
-    jina_api_key = os.environ.get("JINA_API_KEY")
-    if not jina_api_key or not listings:
-        log.info("Jina API key not found or listings empty. Using fallback BM25-alike string scoring for reranking.")
-        # Fallback simple search query matching
-        scored = []
-        query_terms = set(query.lower().split())
-        for lst in listings:
-            title = lst.get("title", "").lower()
-            desc = lst.get("description", "").lower()
-            score = 0.0
-            for term in query_terms:
-                if term in title:
-                    score += 2.0
-                if term in desc:
-                    score += 1.0
-            scored.append((score, lst))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        return [lst for _, lst in scored[:top_k]]
-
-    try:
-        from jina_reranker_client import RerankerClient
-        client = RerankerClient(api_key=jina_api_key)
-        # Format documents for Jina reranker
-        documents = [
-            {"id": idx, "text": f"{lst.get('title', '')} - {lst.get('description', '')} at {lst.get('address', '')}"}
-            for idx, lst in enumerate(listings)
-        ]
-        results = client.rerank(query=query, documents=documents, top_n=top_k)
+    if not listings:
+        return []
         
-        selected = []
-        for result in results:
-            target_idx = int(result["document"]["id"])
-            selected.append(listings[target_idx])
-        return selected
-    except Exception as e:
-        log.warning(f"Error running Jina Rerank: {e}. Falling back to BM25 sequence matching.")
-        return listings[:top_k]
+    log.info("Using BM25-alike string scoring for reranking.")
+    # Fallback simple search query matching
+    scored = []
+    query_terms = set(query.lower().split())
+    for lst in listings:
+        title = lst.get("title", "").lower()
+        desc = lst.get("description", "").lower()
+        addr = lst.get("address", "").lower()
+
+        score = 0
+        for term in query_terms:
+            if term in title: score += 3
+            if term in addr: score += 2
+            if term in desc: score += 1
+
+        scored.append((score, lst))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [lst for _, lst in scored[:top_k]]

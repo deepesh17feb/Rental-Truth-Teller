@@ -139,7 +139,9 @@ class ESWriter:
             self._stats["indexed"] += ok
             if errors:
                 self._stats["errors"] += len(errors)
+                # pylint: disable=unsubscriptable-object
                 reason = errors[0].get("index", {}).get("error", {}).get("reason", str(errors[0]))
+                # pylint: enable=unsubscriptable-object
                 log.error("ES bulk error (first): %s", reason)
             log.info("ES flushed → +%d indexed  (total=%d  errors=%d)",
                      ok, self._stats["indexed"], self._stats["errors"])
