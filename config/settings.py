@@ -1,71 +1,88 @@
 """
 config/settings.py
 ──────────────────
-Central configuration for the RentalTruth Tier-0 crawler.
-All values are driven by environment variables (see .env).
-
-Authentication priority:
-  1. ES_API_KEY  — preferred for Elastic Cloud (base64-encoded id:secret)
-  2. ES_USERNAME + ES_PASSWORD — fallback for self-hosted clusters
+Central configuration for the RentalTruth system.
+Uses pydantic-settings for robust environment variable management.
 """
 
 from __future__ import annotations
 
-import os
+import json
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Any
 
-from dotenv import load_dotenv
+from pydantic import Field, computed_field, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
 
-
-class AppConfig:
-    """Singleton-style config loaded from environment variables."""
+class AppConfig(BaseSettings):
+    """Configuration loaded from environment variables."""
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # ── Elasticsearch connection ──────────────────────────────────────────────
-    ES_HOST: str   = os.getenv("ES_HOST",   "localhost")
-    ES_PORT: int   = int(os.getenv("ES_PORT", "9200"))
-    ES_SCHEME: str = os.getenv("ES_SCHEME", "http")
+    ES_HOST: str = Field(default="localhost")
+    ES_PORT: int = Field(default=9200)
+    ES_SCHEME: str = Field(default="http")
 
     # ── Authentication ────────────────────────────────────────────────────────
-    # API Key (base64 id:secret) — used when set; takes priority over basic auth
-    ES_API_KEY: Optional[str] = os.getenv("ES_API_KEY") or None
-
-    # Basic auth — fallback when ES_API_KEY is not set
-    ES_USERNAME: str = os.getenv("ES_USERNAME", "elastic")
-    ES_PASSWORD: str = os.getenv("ES_PASSWORD", "changeme")
+    ES_API_KEY: Optional[str] = Field(default=None)
+    ES_USERNAME: str = Field(default="elastic")
+    ES_PASSWORD: str = Field(default="changeme")
 
     # ── Index ─────────────────────────────────────────────────────────────────
-    ES_INDEX_PROPERTIES: str = os.getenv("ES_INDEX_PROPERTIES", "bangalore_properties")
-    ES_INDEX_REPLICA: int    = int(os.getenv("ES_INDEX_REPLICA", "0"))
-    ES_INDEX_SHARDS: int     = int(os.getenv("ES_INDEX_SHARDS", "1"))
+    ES_INDEX_PROPERTIES: str = Field(default="bangalore_properties")
+    ES_INDEX_REPLICA: int = Field(default=0)
+    ES_INDEX_SHARDS: int = Field(default=1)
 
     # ── ELSER ─────────────────────────────────────────────────────────────────
-    ELSER_INFERENCE_ID: str    = os.getenv("ELSER_INFERENCE_ID", ".elser-2-elasticsearch")
-    ELSER_NUM_ALLOCATIONS: int = int(os.getenv("ELSER_NUM_ALLOCATIONS", "1"))
-    ELSER_NUM_THREADS: int     = int(os.getenv("ELSER_NUM_THREADS", "1"))
+    ELSER_INFERENCE_ID: str = Field(default=".elser-2-elasticsearch")
+    ELSER_NUM_ALLOCATIONS: int = Field(default=1)
+    ELSER_NUM_THREADS: int = Field(default=1)
 
     # ── Crawler ───────────────────────────────────────────────────────────────
-    CRAWL_DELAY_SECONDS: float              = float(os.getenv("CRAWL_DELAY_SECONDS", "2"))
-    CRAWL_CONCURRENT_REQUESTS: int          = int(os.getenv("CRAWL_CONCURRENT_REQUESTS", "8"))
-    CRAWL_CONCURRENT_REQUESTS_PER_DOMAIN: int = int(os.getenv("CRAWL_CONCURRENT_REQUESTS_PER_DOMAIN", "2"))
-    CRAWL_DOWNLOAD_TIMEOUT: int             = int(os.getenv("CRAWL_DOWNLOAD_TIMEOUT", "30"))
-    CRAWL_MAX_RETRIES: int                  = int(os.getenv("CRAWL_MAX_RETRIES", "3"))
+    CRAWL_DELAY_SECONDS: float = Field(default=2.0)
+    CRAWL_CONCURRENT_REQUESTS: int = Field(default=8)
+    CRAWL_CONCURRENT_REQUESTS_PER_DOMAIN: int = Field(default=2)
+    CRAWL_DOWNLOAD_TIMEOUT: int = Field(default=30)
+    CRAWL_MAX_RETRIES: int = Field(default=3)
 
     # ── Target config ─────────────────────────────────────────────────────────
-    BANGALORE_AREAS: List[str] = [
-        a.strip()
-        for a in os.getenv("BANGALORE_AREAS", "Whitefield,Koramangala").split(",")
-        if a.strip()
-    ]
-    TRANSACTION_TYPE: str = os.getenv("TRANSACTION_TYPE", "both")   # rent | sale | both
+    # We use Any to bypass pydantic-settings automatic JSON parsing for Lists in .env
+    BANGALORE_AREAS: Any = Field(default=["Whitefield", "Koramangala"])
+    TRANSACTION_TYPE: str = Field(default="both")   # rent | sale | both
+
+    @field_validator("BANGALORE_AREAS", mode="before")
+    @classmethod
+    def assemble_areas(cls, v: Any) -> List[str]:
+        if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                try:
+                    return json.loads(v)
+                except json.JSONDecodeError:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
+
+    # ── LLM Settings ──────────────────────────────────────────────────────────
+    LLM_PROVIDER: str = Field(default="gemini")
+    GEMINI_API_KEY: Optional[str] = Field(default=None)
+    GEMINI_MODEL: str = Field(default="gemini-flash-latest")
+
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(default=None)
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(default=None)
+    AWS_DEFAULT_REGION: str = Field(default="us-east-1")
+
+    USE_MOCK_LLM: bool = Field(default=False)
 
     # ── Logging ───────────────────────────────────────────────────────────────
-    LOG_LEVEL: str  = os.getenv("LOG_LEVEL",  "INFO")
-    LOG_FORMAT: str = os.getenv("LOG_FORMAT", "json")
+    LOG_LEVEL: str = Field(default="INFO")
+    LOG_FORMAT: str = Field(default="standard")  # standard | json
+    CLI_LOG_PATH: str = Field(default="cli.log")
+    UI_LOG_PATH: str = Field(default="ui.log")
+    BACKEND_LOG_PATH: str = Field(default="backend.log")
 
     # ── Derived helpers ───────────────────────────────────────────────────────
+    @computed_field
     @property
     def es_url(self) -> str:
         return f"{self.ES_SCHEME}://{self.ES_HOST}:{self.ES_PORT}"
