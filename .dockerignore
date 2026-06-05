@@ -1,0 +1,17 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv
+venv
+env
+*.log
+cli.log
+ui.log
+backend.log
+streamlit.log
+verification/
+.pytest_cache

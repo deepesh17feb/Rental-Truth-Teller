@@ -58,3 +58,20 @@ tags
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Logs
+*.log
+cli.log
+ui.log
+backend.log
+streamlit.log
+
+# Environment
+.env
+.venv
+venv
+env
+
+# Verification
+verification/
+.pytest_cache/
