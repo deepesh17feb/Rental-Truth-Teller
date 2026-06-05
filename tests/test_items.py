@@ -4,7 +4,6 @@ tests/test_items.py
 Unit tests for PropertyItem serialization and price parsing utilities.
 """
 
-import pytest
 from crawler.items import PropertyItem, GeoPoint
 from crawler.spiders.base_spider import BangalorePropertySpider
 

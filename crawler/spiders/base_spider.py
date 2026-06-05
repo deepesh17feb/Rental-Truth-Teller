@@ -84,37 +84,22 @@ class BangalorePropertySpider(scrapy.Spider):
         raw = f"{source}::{source_id}"
         return hashlib.sha256(raw.encode()).hexdigest()
 
+    from crawler.utils.parsers import parse_price as utils_parse_price, parse_area_sqft as utils_parse_sqft, clean_text as utils_clean_text
+
     @staticmethod
     def parse_price(text: str) -> Optional[float]:
-        """
-        Parse Indian price strings into a float (INR).
-        Examples:
-            "₹ 45 Lac"         → 4_500_000
-            "₹ 1.5 Cr"         → 15_000_000
-            "₹ 25,000 / month" → 25_000
-        """
-        if not text:
-            return None
-        text = text.replace(",", "").replace("₹", "").replace("Rs", "").strip()
-        match = re.search(r"([\d.]+)\s*(cr|lac|lakh|k)?", text, re.IGNORECASE)
-        if not match:
-            return None
-        value = float(match.group(1))
-        suffix = (match.group(2) or "").lower()
-        multipliers = {"cr": 1e7, "lac": 1e5, "lakh": 1e5, "k": 1e3}
-        return value * multipliers.get(suffix, 1)
+        """Parse Indian price strings into a float (INR)."""
+        from crawler.utils.parsers import parse_price as _p
+        return _p(text)
 
     @staticmethod
     def parse_area_sqft(text: str) -> Optional[float]:
-        """Extract numeric sq.ft value from strings like '1200 sq.ft' or '1,200 Sq.Ft'."""
-        if not text:
-            return None
-        match = re.search(r"([\d,]+(?:\.\d+)?)\s*sq", text, re.IGNORECASE)
-        if match:
-            return float(match.group(1).replace(",", ""))
-        return None
+        """Extract numeric sq.ft value from strings."""
+        from crawler.utils.parsers import parse_area_sqft as _s
+        return _s(text)
 
     @staticmethod
     def clean_text(text: str) -> str:
         """Strip whitespace/newlines from scraped strings."""
-        return " ".join(text.split()).strip() if text else ""
+        from crawler.utils.parsers import clean_text as _c
+        return _c(text)

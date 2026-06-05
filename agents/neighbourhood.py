@@ -7,41 +7,16 @@ hospitals, and generates mock Kibana map pin layout.
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 from langchain_core.prompts import ChatPromptTemplate
 from agents.config import get_llm, get_response_text
+from agents.prompts import RESOLVE_NEIGHBOURHOOD_PROMPT
 from agents.state import AgentState, NearbyFacility, NeighbourhoodAnalysis
+from agents.fallbacks import fallback_neighbourhood_analysis
+from agents.utils import parse_json_from_llm
 
 log = logging.getLogger(__name__)
-
-RESOLVE_NEIGHBOURHOOD_PROMPT = """You are a Bangalore local geographer and spatial intelligence agent.
-Given a target property's resolved locality and structured address:
-Locality: {locality}
-Structured Address: {structured_address}
-
-Resolve real, actual nearby facilities of the following types that exist around this area:
-1. The closest real Metro Station and its realistic road distance in kilometers (usually 0.5 to 5.0 km).
-2. Two real schools (within 3km) and their realistic distances.
-3. Two real hospitals or clinics (within 3km) and their realistic distances.
-4. Two real supermarkets or local shopping markets (within 2km) and their realistic distances.
-
-Return a strictly formatted JSON object matching this schema:
-{{
-  "metro_station": "Real Metro Station Name",
-  "metro_distance_km": 1.2,
-  "facilities": [
-    {{"name": "Real School 1", "facility_type": "school", "distance_km": 0.8}},
-    {{"name": "Real School 2", "facility_type": "school", "distance_km": 1.5}},
-    {{"name": "Real Hospital 1", "facility_type": "hospital", "distance_km": 1.1}},
-    {{"name": "Real Hospital 2", "facility_type": "hospital", "distance_km": 2.2}},
-    {{"name": "Real Supermarket 1", "facility_type": "market", "distance_km": 0.5}},
-    {{"name": "Real Supermarket 2", "facility_type": "market", "distance_km": 1.0}}
-  ]
-}}
-Write ONLY the raw JSON object. Do not wrap in markdown, backticks or formatting.
-"""
 
 def neighbourhood_node(state: AgentState) -> dict:
     log.info("[Neighbourhood Agent] Analyzing neighborhood points of interest (POI) dynamically…")
@@ -65,13 +40,8 @@ def neighbourhood_node(state: AgentState) -> dict:
             "structured_address": structured_address
         })
         content = get_response_text(response)
-        if content.startswith("```json"):
-            content = content.replace("```json", "", 1)
-        if content.endswith("```"):
-            content = content.rsplit("```", 1)[0]
-        content = content.strip()
+        data = parse_json_from_llm(content)
 
-        data = json.loads(content)
         metro_station = data.get("metro_station", f"{locality} Metro Station")
         base_metro_dist = float(data.get("metro_distance_km", 2.0))
 
@@ -94,14 +64,7 @@ def neighbourhood_node(state: AgentState) -> dict:
         
     except Exception as exc:
         log.error(f"[Neighbourhood Agent] Error during dynamic POI resolution: {exc}. Using robust fallback estimates.")
-        # Dynamic fallback generators
-        base_metro_dist = 1.5
-        facilities = [
-            NearbyFacility(name=f"{locality} Central High School", facility_type="school", distance_km=1.2),
-            NearbyFacility(name=f"{locality} Community Clinic", facility_type="hospital", distance_km=0.8),
-            NearbyFacility(name=f"{locality} Supermarket", facility_type="market", distance_km=0.5),
-            NearbyFacility(name=metro_station, facility_type="metro", distance_km=base_metro_dist)
-        ]
+        base_metro_dist, facilities = fallback_neighbourhood_analysis(locality, metro_station)
 
     # 2. Summarize metrics for State
     schools_count = sum(1 for f in facilities if f.facility_type == "school")

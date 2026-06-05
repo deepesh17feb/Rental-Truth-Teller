@@ -27,18 +27,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config.settings import config
-from config.areas import TARGET_AREAS
-from crawler.items import GeoPoint, PropertyItem
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
     datefmt="%H:%M:%S",
 )
-log = logging.getLogger("mock_data")
+log = logging.getLogger("generate_mock_data")
 
-OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"
+from config.settings import config
+from config.areas import TARGET_AREAS
+from crawler.items import GeoPoint, PropertyItem
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Data pools for realistic generation
@@ -247,6 +245,7 @@ def generate_property(area_name: str, source: str, idx: int) -> PropertyItem:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def run(count: int, no_es: bool) -> None:
+    OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"
     ts       = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
     out_path = OUTPUT_DIR / f"mock_properties_{ts}.jsonl"
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

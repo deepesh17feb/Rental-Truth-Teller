@@ -24,7 +24,7 @@ import json
 import logging
 import re
 from typing import Iterator, Optional
-from urllib.parse import urlencode, urlparse, parse_qs, urljoin
+from urllib.parse import urljoin
 
 import scrapy
 

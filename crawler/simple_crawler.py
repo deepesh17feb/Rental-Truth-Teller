@@ -95,30 +95,7 @@ def _make_doc_id(source: str, source_id: str) -> str:
     return hashlib.sha256(f"{source}::{source_id}".encode()).hexdigest()
 
 
-def _parse_price(text: str) -> Optional[float]:
-    if not text:
-        return None
-    text = str(text).replace(",", "").replace("₹", "").replace("Rs", "").strip()
-    m = re.search(r"([\d.]+)\s*(cr|lac|lakh|k)?", text, re.IGNORECASE)
-    if not m:
-        return None
-    value = float(m.group(1))
-    suffix = (m.group(2) or "").lower()
-    return value * {"cr": 1e7, "lac": 1e5, "lakh": 1e5, "k": 1e3}.get(suffix, 1)
-
-
-def _parse_sqft(text: str) -> Optional[float]:
-    m = re.search(r"([\d,]+(?:\.\d+)?)\s*sq", str(text), re.IGNORECASE)
-    return float(m.group(1).replace(",", "")) if m else None
-
-
-def _extract_bhk(text: str) -> Optional[int]:
-    m = re.search(r"(\d+)\s*(?:BHK|bhk|bedroom|Bedroom)", str(text))
-    return int(m.group(1)) if m else None
-
-
-def _clean(text) -> str:
-    return " ".join(str(text).split()).strip() if text else ""
+from crawler.utils.parsers import parse_price as _parse_price, parse_area_sqft as _parse_sqft, extract_bhk as _extract_bhk, clean_text as _clean
 
 
 def _extract_json_from_script(html: str, var_names: List[str]) -> Optional[dict]:

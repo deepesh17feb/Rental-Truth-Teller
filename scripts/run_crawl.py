@@ -33,16 +33,17 @@ from pathlib import Path
 # ── Project root on sys.path ──────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from config.settings import config
-from config.areas import TARGET_AREAS
-from crawler.items import PropertyItem
-from crawler.simple_crawler import BangaloreCrawler, MagicBricksCrawler, NinetyAcresCrawler, _build_session
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
     datefmt="%H:%M:%S",
 )
+
+from config.settings import config
+from config.areas import TARGET_AREAS
+from crawler.items import PropertyItem
+from crawler.simple_crawler import MagicBricksCrawler, NinetyAcresCrawler, _build_session
+
 log = logging.getLogger("run_crawl")
 
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"

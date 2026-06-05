@@ -17,19 +17,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Generator, Optional
 
-from playwright.sync_api import sync_playwright
-
 # ── Project root on sys.path ──────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from config.areas import TARGET_AREAS, AreaConfig
-from crawler.items import PropertyItem, GeoPoint
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-7s  %(message)s",
     datefmt="%H:%M:%S",
 )
+
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    pass
+
+from config.areas import TARGET_AREAS, AreaConfig
+from crawler.items import PropertyItem, GeoPoint
 log = logging.getLogger("browser_crawl")
 
 OUTPUT_DIR = Path(__file__).resolve().parents[1] / "output"
