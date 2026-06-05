@@ -17,6 +17,8 @@ services:
       - "8501:8501"
     env_file:
       - .env
+    environment:
+      - TRUTH_TELLER_API_URL=http://api:8000
     volumes:
       - .:/app
     command: streamlit run rendering/ui/app.py --server.address 0.0.0.0

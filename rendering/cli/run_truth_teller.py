@@ -1,7 +1,7 @@
 """
 rendering/cli/run_truth_teller.py
-───────────────────────────────
-CLI entrypoint script to test the multi-agent Graph.
+────────────────────────────────
+CLI entrypoint to test the multi-agent Bangalore rental verification graph.
 """
 
 from __future__ import annotations

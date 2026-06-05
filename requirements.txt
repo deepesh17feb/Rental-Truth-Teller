@@ -17,8 +17,8 @@ elasticsearch-dsl==8.13.0
 
 # Data Processing
 python-dateutil==2.9.0
-pydantic==2.7.1
-pydantic-settings==2.2.1
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
 
 # Configuration & Environment
 python-dotenv==1.0.1
