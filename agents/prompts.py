@@ -105,6 +105,8 @@ Context data:
 - Vibe & Rules: {vibe_data}
 - Neighborhood & Metro proximity: {neighbourhood_data}
 
+{critique_section}
+
 Output parameters required:
 1. Overpriced Percentage: directly mapped or adjusted from Price Analysis.
 2. Red Flags list: Gather extreme prices, strict lease terms (e.g. high deposit, bachelors penalty, veg-only restrictions) or POI deficiencies (e.g. no metro within 3km).

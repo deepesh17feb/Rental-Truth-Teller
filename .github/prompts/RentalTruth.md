@@ -1,77 +1,82 @@
-Problem Statement
+# 03 · Housing & Rental Truth-Teller
 
-03 · Housing & Rental Truth-Teller — Open Crawler, Elasticsearch hybrid search, ELSER, Jina rerankers, MCP, Bedrock, EC2, Kibana Maps
+**Tech Stack:** Open Crawler, Elasticsearch hybrid search, ELSER, Jina rerankers, MCP, Amazon Bedrock, EC2, Kibana Maps
+
+## Problem Statement
+
 Bengaluru’s rental market runs on whisper networks and inflated brokerage. Newcomers get told a 10-month deposit is normal. “Premium locality” rents have no relationship to amenities. Listings disappear and reappear at higher prices.
+
 Build an agent that:
-surfaces real market rates from actual listings,
-flags suspicious pricing patterns,
-explains neighborhood tradeoffs honestly,
-and never gaslights a first-time renter.
-The “second opinion” agent the broker doesn’t want you to have.
+- Surfaces real market rates from actual listings
+- Flags suspicious pricing patterns
+- Explains neighborhood tradeoffs honestly
+- Never gaslights a first-time renter
 
-Approach
+**Mission:** The “second opinion” agent the broker doesn’t want you to have.
 
-Place Detector - an agent which can figure out the place detail like society, apartment, independent etc. Once place is identified, it can figure more details around
-Property Intelligence Agent -   property type, locality, apartment/society, amenities,
-Property Housing Subagent  - it deals with specific flat details like flat configuration, location inside, floor, size, sunlight, etc.
-Nearby Agent -
-Basic accessibilities like market, restaurant, hospitals, school etc.
-Locality like safe or unsafe
-Reachability to popular places nearby like tech parks, railways, airport etc.
-Commute Agent - traffic positioning, top frequent routes
-Safety Agent - Incident reporting within society & nearby area, crime.
-Fraud Detection
-Fake listing depends on other similar listing
-Price Variation comparing to standard, honeypot listing
-Same details across multiple listing
-AI Vision to detect reliability of property
-Social Check for property owners
-Rent Agent
-Average Deposits &
-Average Pricing
-Deduction history
+## Approach & Agent Roles
 
-** High Level Architecture **
-┌─────────────────────────────────────────────────────────┐
-│                   TIER 0: DATA LAYER                    │
-│  Crawler Agents → Dedup Pipeline → Elasticsearch        │
-│  (per-source: MagicBricks, 99acres, NoBroker, Housing)  │
-└─────────────────────────────────────────────────────────┘
-↓
-┌─────────────────────────────────────────────────────────┐
-│              TIER 1: SPECIALIST AGENTS                  │
-│                                                         │
-│  1. Listing Intelligence Agent                          │
-│     (property type, config, floor, amenities, geocode)  │
-│                                                         │
-│  2. Hyperlocal Intelligence Agent (was: Nearby)         │
-│     (POI, walkability, infra quality, flood risk)       │
-│                                                         │
-│  3. Mobility Agent (was: Commute)                       │
-│     (multi-modal, peak/off-peak, last-mile)             │
-│                                                         │
-│  4. Safety & Trust Agent                                │
-│     (crime index, society incidents, waterlogging)      │
-│                                                         │
-│  5. Market Intelligence Agent (was: Rent Agent)         │
-│     (benchmarking, deposit norms, trends, negotiation)  │
-│                                                         │
-│  6. Fraud & Authenticity Agent                          │
-│     (photo forensics, listing age, broker ID, contacts) │
-│                                                         │
-│  7. Legal Intelligence Agent  ← NEW                     │
-│     (RERA, Rent Control, lease flags, BBMP status)      │
-│                                                         │
-│  8. User Context Agent  ← NEW                           │
-│     (preferences, workplace, budget, lifestyle)         │
-└─────────────────────────────────────────────────────────┘
-↓
-┌─────────────────────────────────────────────────────────┐
-│           TIER 2: TRUTH TELLER ORCHESTRATOR  ← NEW      │
-│                                                         │
-│  • Composite Trust Score (0–100)                        │
-│  • Red Flags (prioritized, plain English)               │
-│  • Neighborhood Tradeoff Summary                        │
-│  • Negotiation Intelligence                             │
-│  • Final Verdict: RECOMMEND / CAUTION / AVOID           │
-└─────────────────────────────────────────────────────────┘
+Our approach relies on a multi-agent system where specialized sub-agents analyze different facets of a property, feeding insights to a central orchestrator. 
+
+### Tier 1: Specialist Agents
+
+- **Listing Intelligence Agent**
+  - Identifies property type (society, apartment, independent), configuration, floor, size, and sunlight.
+  - Validates amenities and internal flat details.
+- **Hyperlocal Intelligence Agent**
+  - Maps basic accessibility: markets, restaurants, hospitals, schools.
+  - Assesses walkability, infrastructure quality, and flood risk.
+- **Mobility Agent**
+  - Analyzes traffic positioning, top frequent routes, peak/off-peak commute times.
+  - Evaluates reachability to tech parks, railways, airports, and last-mile connectivity.
+- **Safety & Trust Agent**
+  - Monitors incident reporting within societies and nearby areas.
+  - Evaluates crime index, waterlogging history, and general locality safety.
+- **Market Intelligence Agent**
+  - Computes average deposits and average pricing.
+  - Benchmarks against standard pricing to track trends and guide negotiation.
+  - Tracks historical deduction norms.
+- **Fraud & Authenticity Agent**
+  - Identifies honeypot listings and fake listings based on similarities.
+  - Flags price variations compared to standard rates and recycled listing details.
+  - Uses AI Vision (photo forensics) to detect property reliability from photos.
+  - Conducts social checks for property owners and brokers.
+- **Legal Intelligence Agent**
+  - Verifies RERA, Rent Control, lease flags, and BBMP status.
+- **User Context Agent**
+  - Factors in user preferences, workplace location, budget, and lifestyle.
+
+## High Level Architecture
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                          TIER 0: DATA LAYER                            │
+│  • Open Crawlers → Dedup Pipeline                                      │
+│    (MagicBricks, 99acres, NoBroker, Housing, News/Social)              │
+│  • Storage & Retrieval: Elasticsearch (Hybrid Search), ELSER (Sparse)  │
+│  • Reranking: Jina Rerankers                                           │
+│  • Geospatial Data: Kibana Maps                                        │
+│  • Infrastructure: EC2                                                 │
+└────────────────────────────────────────────────────────────────────────┘
+                                   ↓
+┌────────────────────────────────────────────────────────────────────────┐
+│                TIER 1: SPECIALIST AGENTS (Amazon Bedrock)              │
+│                                                                        │
+│  1. Listing Intelligence Agent  5. Market Intelligence Agent           │
+│  2. Hyperlocal Intel Agent      6. Fraud & Authenticity Agent          │
+│  3. Mobility Agent              7. Legal Intelligence Agent            │
+│  4. Safety & Trust Agent        8. User Context Agent                  │
+│                                                                        │
+│  * Integrated via MCP (Model Context Protocol) for tool execution      │
+└────────────────────────────────────────────────────────────────────────┘
+                                   ↓
+┌────────────────────────────────────────────────────────────────────────┐
+│                 TIER 2: TRUTH TELLER ORCHESTRATOR                      │
+│                                                                        │
+│  • Composite Trust Score (0–100)                                       │
+│  • Red Flags (prioritized, plain English)                              │
+│  • Neighborhood Tradeoff Summary                                       │
+│  • Negotiation Intelligence                                            │
+│  • Final Verdict: RECOMMEND / CAUTION / AVOID                          │
+└────────────────────────────────────────────────────────────────────────┘
+```

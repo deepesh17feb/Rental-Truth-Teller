@@ -32,6 +32,25 @@ def supervisor_node(state: AgentState) -> dict:
         )
         return {"address_resolved": res, "messages": ["[Supervisor Agent] No input listing provided; resolved global default."]}
 
+    # Look up known target areas (from config.areas) before falling back to LLM geocoding
+    from config.areas import TARGET_AREAS
+    text_lower = listing_input.lower()
+    for key, area_cfg in TARGET_AREAS.items():
+        if key in text_lower or area_cfg.name.lower() in text_lower:
+            resolved = AddressResolved(
+                raw_address=listing_input[:100],
+                structured_address=f"{area_cfg.name}, Bangalore, Karnataka, India",
+                locality=area_cfg.name,
+                geo=GeoPoint(lat=area_cfg.latitude, lon=area_cfg.longitude),
+                confidence=0.9
+            )
+            msg = f"[Supervisor Agent] Geolocated to `{resolved.locality}` via static dictionary. Coords: ({resolved.geo.lat}, {resolved.geo.lon})."
+            log.info(msg)
+            return {
+                "address_resolved": resolved,
+                "messages": [msg]
+            }
+
     llm = get_llm(temperature=0.1)
     prompt = ChatPromptTemplate.from_template(GEOCODE_PROMPT)
     chain = prompt | llm

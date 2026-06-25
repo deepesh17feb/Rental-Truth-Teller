@@ -98,7 +98,53 @@ def pricing_node(state: AgentState) -> dict:
             log.info(f"[Pricing Agent] Insufficient ES comparables found ({len(es_ratings)}). Querying LLM for dynamic baseline metrics.")
 
     except Exception as exc:
-        log.warning(f"[Pricing Agent] Elasticsearch connection failed: {exc}. Querying LLM for dynamic benchmarks.")
+        log.warning(f"[Pricing Agent] Elasticsearch connection failed: {exc}. Trying local embedded BM25 search.")
+        
+        try:
+            import json
+            import glob
+            from rank_bm25 import BM25Okapi
+
+            # Find latest jsonl
+            list_of_files = glob.glob('output/*.jsonl')
+            if list_of_files:
+                latest_file = max(list_of_files, key=lambda x: x)
+                local_docs = []
+                with open(latest_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            local_docs.append(json.loads(line))
+                
+                # Filter by rent
+                rent_docs = [doc for doc in local_docs if doc.get("transaction_type") == "rent"]
+                
+                if rent_docs:
+                    # Create corpus
+                    corpus = []
+                    for doc in rent_docs:
+                        text = f"{doc.get('area', '')} {doc.get('address', '')} {doc.get('description', '')}".lower()
+                        corpus.append(text.split())
+                        
+                    bm25 = BM25Okapi(corpus)
+                    query = locality.lower().split()
+                    top_n = bm25.get_top_n(query, rent_docs, n=20)
+                    
+                    for doc in top_n:
+                        rent = doc.get("price")
+                        sqft = doc.get("area_sqft")
+                        if rent and sqft:
+                            es_ratings.append(float(rent) / float(sqft))
+                    
+                    if len(es_ratings) > 2:
+                        market_avg = sum(es_ratings) / len(es_ratings)
+                        variance = sum((x - market_avg) ** 2 for x in es_ratings) / len(es_ratings)
+                        market_std = math.sqrt(variance) if variance > 0 else 1.0
+                        fetched_from_es = True
+                        log.info(f"[Pricing Agent] Local BM25 search matched {len(es_ratings)} comparables. Calculated Mean Rate: Rs.{market_avg:.2f}/sqft, StdDev: {market_std:.2f}")
+                    else:
+                        log.info(f"[Pricing Agent] Insufficient local comparables found ({len(es_ratings)}). Querying LLM for dynamic baseline metrics.")
+        except Exception as local_exc:
+            log.warning(f"[Pricing Agent] Local BM25 search also failed: {local_exc}. Querying LLM for dynamic benchmarks.")
 
     # Fallback to dynamic LLM benchmark resolution if ES search was sparse or failed
     if not fetched_from_es:
