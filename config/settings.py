@@ -55,11 +55,6 @@ class AppConfig(BaseSettings):
     @classmethod
     def assemble_areas(cls, v: Any) -> List[str]:
         if isinstance(v, str):
-            if v.startswith("[") and v.endswith("]"):
-                try:
-                    return json.loads(v)
-                except json.JSONDecodeError:
-                    pass
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
 
