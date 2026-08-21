@@ -1,25 +1,25 @@
 """
 agents/supervisor.py
 ────────────────────
-Supervisor Agent: First entrypoint. Performs geocoding / address resolution 
+Supervisor Agent: First entrypoint. Performs geocoding / address resolution
 from raw listing input text to populate shared agent parameters.
 """
 
 from __future__ import annotations
 
 import logging
-from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm, get_response_text
+from agents.config import get_llm
 from agents.prompts import GEOCODE_PROMPT
 from agents.state import AgentState, AddressResolved, GeoPoint
 from agents.fallbacks import fallback_address_resolution
-from agents.utils import parse_json_from_llm
+from agents.llm_call import call_llm_structured, LLMCallError
+from agents.schemas import GeocodeResult
 
 log = logging.getLogger(__name__)
 
 def supervisor_node(state: AgentState) -> dict:
     log.info("[Supervisor Agent] Resolving address & geocoding listing…")
-    
+
     listing_input = state.get("listing_input", "")
     if not listing_input:
         # Defaults fallback
@@ -52,33 +52,24 @@ def supervisor_node(state: AgentState) -> dict:
             }
 
     llm = get_llm(temperature=0.1)
-    prompt = ChatPromptTemplate.from_template(GEOCODE_PROMPT)
-    chain = prompt | llm
 
     try:
-        response = chain.invoke({"listing_input": listing_input})
-        content = get_response_text(response)
-        data = parse_json_from_llm(content)
-        
-        # Rely directly on coordinates from LLM resolution, or default to Bangalore Center
-        lat = float(data.get("lat", 12.9716))
-        lon = float(data.get("lon", 77.5946))
-        locality = data.get("locality", "Whitefield")
+        data = call_llm_structured(llm, GEOCODE_PROMPT, {"listing_input": listing_input}, GeocodeResult)
 
         resolved = AddressResolved(
             raw_address=listing_input[:100],
-            structured_address=data.get("structured_address", ""),
-            locality=locality,
-            geo=GeoPoint(lat=lat, lon=lon),
+            structured_address=data.structured_address,
+            locality=data.locality,
+            geo=GeoPoint(lat=data.lat, lon=data.lon),
             confidence=0.9
         )
-        
+
         msg = f"[Supervisor Agent] Geolocated to `{resolved.locality}`. Coords: ({resolved.geo.lat}, {resolved.geo.lon})."
         log.info(msg)
         return {
             "address_resolved": resolved,
             "messages": [msg]
         }
-    except Exception as e:
-        log.error(f"[Supervisor Agent] Address resolution parsing error: {e}")
+    except LLMCallError as e:
+        log.error(f"[Supervisor Agent] Address resolution failed after retries: {e}")
         return fallback_address_resolution(listing_input, str(e))
