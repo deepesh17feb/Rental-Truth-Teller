@@ -1,9 +1,8 @@
-from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableLambda
-
+# tests/test_neighbourhood.py
 import agents.neighbourhood as neigh_mod
 from agents.cache import clear_locality_cache
-from agents.state import AgentState, AddressResolved, GeoPoint
+from agents.state import AgentState, AddressResolved, GeoPoint, NearbyFacility
+from agents.facilities import FacilityLookupError
 
 
 def _state(locality: str) -> AgentState:
@@ -25,29 +24,33 @@ def test_neighbourhood_resolves_and_caches_by_locality(monkeypatch):
     clear_locality_cache()
     calls = {"n": 0}
 
-    def dispatch(_prompt_value):
+    def fake_find_nearby_facilities(geo):
         calls["n"] += 1
-        return AIMessage(
-            content='{"metro_station": "Whitefield Metro", "metro_distance_km": 1.1, "facilities": [{"name": "Test School", "facility_type": "school", "distance_km": 0.9}]}'
-        )
+        return [
+            NearbyFacility(name="Whitefield Metro", facility_type="metro", distance_km=1.1),
+            NearbyFacility(name="Test School", facility_type="school", distance_km=0.9),
+        ]
 
-    monkeypatch.setattr(neigh_mod, "get_llm", lambda temperature=0.1: RunnableLambda(dispatch))
+    monkeypatch.setattr(neigh_mod, "find_nearby_facilities", fake_find_nearby_facilities)
 
     result1 = neigh_mod.neighbourhood_node(_state("Whitefield"))
     result2 = neigh_mod.neighbourhood_node(_state("Whitefield"))
 
     assert result1["neighbourhood_data"].metro_station == "Whitefield Metro"
+    assert result1["neighbourhood_data"].metro_distance_km == 1.1
     assert result1["neighbourhood_data"].school_count == 1
     assert result1["neighbourhood_data"].used_fallback is False
     assert calls["n"] == 1  # second call hit the cache
     assert result2["neighbourhood_data"].metro_station == "Whitefield Metro"
 
 
-def test_neighbourhood_uses_fallback_on_llm_failure(monkeypatch):
+def test_neighbourhood_uses_fallback_on_lookup_failure(monkeypatch):
     clear_locality_cache()
-    monkeypatch.setattr(
-        neigh_mod, "get_llm", lambda temperature=0.1: RunnableLambda(lambda _: (_ for _ in ()).throw(RuntimeError("boom")))
-    )
+
+    def fake_find_nearby_facilities(geo):
+        raise FacilityLookupError("overpass down")
+
+    monkeypatch.setattr(neigh_mod, "find_nearby_facilities", fake_find_nearby_facilities)
 
     result = neigh_mod.neighbourhood_node(_state("Jayanagar"))
 
