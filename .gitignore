@@ -75,3 +75,4 @@ env
 # Verification
 verification/
 .pytest_cache/
+.worktrees/

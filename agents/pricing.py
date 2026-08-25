@@ -1,3 +1,4 @@
+# agents/pricing.py
 """
 agents/pricing.py
 ─────────────────
@@ -9,44 +10,40 @@ from __future__ import annotations
 
 import logging
 import math
-from langchain_core.prompts import ChatPromptTemplate
-from agents.config import get_llm, get_elasticsearch_client, get_response_text
+from agents.config import get_llm, get_elasticsearch_client
 from agents.prompts import EXTRACT_FINANCIALS_PROMPT, ESTIMATE_BENCHMARKS_PROMPT
 from agents.state import AgentState, PricingAnalysis
-from agents.utils import parse_json_from_llm
+from agents.llm_call import call_llm_structured, LLMCallError
+from agents.schemas import FinancialsResult, BenchmarksResult
+from agents.cache import cached_locality_lookup
 
 log = logging.getLogger(__name__)
 
 def pricing_node(state: AgentState) -> dict:
     log.info("[Pricing Agent] Analyzing Pricing, Deposit Norms, & Price Drift…")
-    
+
     listing_input = state.get("listing_input", "")
     address_resolved = state.get("address_resolved")
-    
+
     if not listing_input:
         return {"pricing_data": PricingAnalysis()}
 
-    # 1. Parse client-side listing financials using LLM
     llm = get_llm(temperature=0.1)
-    prompt = ChatPromptTemplate.from_template(EXTRACT_FINANCIALS_PROMPT)
-    chain = prompt | llm
-    
+
+    # 1. Parse client-side listing financials using LLM
     curr_rent = 0.0
     curr_deposit = 0.0
     curr_area = None
-    
+    financials_failed = False
+
     try:
-        response = chain.invoke({"listing_input": listing_input})
-        content = get_response_text(response)
-        financials = parse_json_from_llm(content)
-        
-        curr_rent = float(financials.get("rent", 0.0))
-        curr_deposit = float(financials.get("deposit", 0.0))
-        curr_area = financials.get("area_sqft")
-        if curr_area is not None:
-            curr_area = float(curr_area)
-    except Exception as e:
-        log.error(f"[Pricing Agent] Financial extraction parsing exception: {e}")
+        financials = call_llm_structured(llm, EXTRACT_FINANCIALS_PROMPT, {"listing_input": listing_input}, FinancialsResult)
+        curr_rent = financials.rent
+        curr_deposit = financials.deposit
+        curr_area = financials.area_sqft
+    except LLMCallError as e:
+        log.error(f"[Pricing Agent] Financial extraction failed after retries: {e}")
+        financials_failed = True
 
     # 2. Local market benchmarks: Resolve locality
     locality = address_resolved.locality if address_resolved else ""
@@ -54,10 +51,11 @@ def pricing_node(state: AgentState) -> dict:
         locality = address_resolved.structured_address.split(",")[0]
     if not locality:
         locality = "Bangalore"
-        
+
     market_avg = 40.0
     market_std = 7.0
     fetched_from_es = False
+    used_fallback = False
 
     # 3. Query Elasticsearch for actual listing comparables
     es_ratings = []
@@ -77,17 +75,17 @@ def pricing_node(state: AgentState) -> dict:
             },
             "size": 20
         }
-        
+
         res = es.search(index="bangalore_properties", body=search_body)
         hits = res.get("hits", {}).get("hits", [])
-        
+
         for hit in hits:
             source_doc = hit.get("_source", {})
             rent = source_doc.get("price")
             sqft = source_doc.get("area_sqft")
             if rent and sqft:
                 es_ratings.append(float(rent) / float(sqft))
-                
+
         if len(es_ratings) > 2:
             market_avg = sum(es_ratings) / len(es_ratings)
             variance = sum((x - market_avg) ** 2 for x in es_ratings) / len(es_ratings)
@@ -98,30 +96,75 @@ def pricing_node(state: AgentState) -> dict:
             log.info(f"[Pricing Agent] Insufficient ES comparables found ({len(es_ratings)}). Querying LLM for dynamic baseline metrics.")
 
     except Exception as exc:
-        log.warning(f"[Pricing Agent] Elasticsearch connection failed: {exc}. Querying LLM for dynamic benchmarks.")
+        log.warning(f"[Pricing Agent] Elasticsearch connection failed: {exc}. Trying local embedded BM25 search.")
+
+        try:
+            import json
+            import glob
+            from rank_bm25 import BM25Okapi
+
+            # Find latest jsonl
+            list_of_files = glob.glob('output/*.jsonl')
+            if list_of_files:
+                latest_file = max(list_of_files, key=lambda x: x)
+                local_docs = []
+                with open(latest_file, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        if line.strip():
+                            local_docs.append(json.loads(line))
+
+                # Filter by rent
+                rent_docs = [doc for doc in local_docs if doc.get("transaction_type") == "rent"]
+
+                if rent_docs:
+                    # Create corpus
+                    corpus = []
+                    for doc in rent_docs:
+                        text = f"{doc.get('area', '')} {doc.get('address', '')} {doc.get('description', '')}".lower()
+                        corpus.append(text.split())
+
+                    bm25 = BM25Okapi(corpus)
+                    query = locality.lower().split()
+                    top_n = bm25.get_top_n(query, rent_docs, n=20)
+
+                    for doc in top_n:
+                        rent = doc.get("price")
+                        sqft = doc.get("area_sqft")
+                        if rent and sqft:
+                            es_ratings.append(float(rent) / float(sqft))
+
+                    if len(es_ratings) > 2:
+                        market_avg = sum(es_ratings) / len(es_ratings)
+                        variance = sum((x - market_avg) ** 2 for x in es_ratings) / len(es_ratings)
+                        market_std = math.sqrt(variance) if variance > 0 else 1.0
+                        fetched_from_es = True
+                        log.info(f"[Pricing Agent] Local BM25 search matched {len(es_ratings)} comparables. Calculated Mean Rate: Rs.{market_avg:.2f}/sqft, StdDev: {market_std:.2f}")
+                    else:
+                        log.info(f"[Pricing Agent] Insufficient local comparables found ({len(es_ratings)}). Querying LLM for dynamic baseline metrics.")
+        except Exception as local_exc:
+            log.warning(f"[Pricing Agent] Local BM25 search also failed: {local_exc}. Querying LLM for dynamic benchmarks.")
 
     # Fallback to dynamic LLM benchmark resolution if ES search was sparse or failed
     if not fetched_from_es:
         try:
-            prompt = ChatPromptTemplate.from_template(ESTIMATE_BENCHMARKS_PROMPT)
-            chain = prompt | llm
-            response = chain.invoke({"locality": locality})
-            content = get_response_text(response)
-            benchmarks = parse_json_from_llm(content)
-            
-            market_avg = float(benchmarks.get("avg_price_per_sqft", 40.0))
-            market_std = float(benchmarks.get("std_price_per_sqft", 7.0))
+            def _fetch_benchmarks() -> BenchmarksResult:
+                return call_llm_structured(llm, ESTIMATE_BENCHMARKS_PROMPT, {"locality": locality}, BenchmarksResult)
+
+            benchmarks = cached_locality_lookup(f"benchmarks:{locality}", _fetch_benchmarks)
+            market_avg = benchmarks.avg_price_per_sqft
+            market_std = benchmarks.std_price_per_sqft
             log.info(f"[Pricing Agent] Resolved benchmarks dynamically via LLM for `{locality}` -> Avg: Rs.{market_avg}/sqft, StdDev: {market_std}")
-        except Exception as e:
+        except LLMCallError as e:
             log.error(f"[Pricing Agent] Failed to fetch dynamic pricing benchmarks via LLM: {e}. Using global defaults.")
             market_avg = 40.0
             market_std = 7.0
+            used_fallback = True
 
     # 4. Process pricing parameters
     curr_price_per_sqft = None
     overpriced_pct = 0.0
     price_drift = False
-    
+
     if curr_area and curr_area > 0 and curr_rent > 0:
         curr_price_per_sqft = curr_rent / curr_area
         overpriced_pct = ((curr_price_per_sqft - market_avg) / market_avg) * 100.0
@@ -137,7 +180,7 @@ def pricing_node(state: AgentState) -> dict:
         # Flag anormal if deposit represents > 10 months of rent
         if deposit_mult > 10.0:
             deposit_normal = False
-            
+
     analysis_res = PricingAnalysis(
         rent_amount=curr_rent,
         deposit_amount=curr_deposit,
@@ -148,9 +191,10 @@ def pricing_node(state: AgentState) -> dict:
         market_avg_price_per_sqft=round(market_avg, 2),
         market_std_price_per_sqft=round(market_std, 2),
         overpriced_percentage=round(overpriced_pct, 1),
-        price_drift_flag=price_drift
+        price_drift_flag=price_drift,
+        used_fallback=used_fallback or financials_failed
     )
-    
+
     msg = f"[Pricing Agent] Completed. Rent: Rs.{curr_rent:.0f}, Security Dep: {deposit_mult:.1f}x Rent multiplier."
     log.info(msg)
     return {

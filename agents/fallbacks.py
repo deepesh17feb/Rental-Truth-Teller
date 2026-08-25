@@ -7,7 +7,8 @@ def fallback_address_resolution(listing_input: str, error_msg: str) -> dict:
         structured_address="Whitefield, Bangalore, Karnataka",
         locality="Whitefield",
         geo=GeoPoint(lat=12.9698, lon=77.7500),
-        confidence=0.4
+        confidence=0.4,
+        used_fallback=True
     )
     return {
         "address_resolved": fallback,
@@ -21,7 +22,8 @@ def fallback_vibe_analysis(error_msg: str) -> dict:
             amenity_vs_claim_diffs=["Unable to perform description NLP validation due to exception."],
             community_signals=[],
             diet_pet_lifestyle=[],
-            listing_nlp_sentiment="Error"
+            listing_nlp_sentiment="Error",
+            used_fallback=True
         ),
         "messages": [f"[Vibe Check Agent] Error encountered: {error_msg}"]
     }
@@ -46,7 +48,8 @@ def fallback_synthesis(rent: float, overpriced_percentage: float, total_upfront_
         total_upfront_cost=total_upfront_cost,
         red_flags=["Failed to run composite synthesis, showing structural pricing alerts only."],
         neighbourhood_score=6.0,
-        broker_questionnaire=["Why does the landlord charge this amount of rent?"]
+        broker_questionnaire=["Why does the landlord charge this amount of rent?"],
+        used_fallback=True
     )
     return {
         "final_verdict": flat_verdict,

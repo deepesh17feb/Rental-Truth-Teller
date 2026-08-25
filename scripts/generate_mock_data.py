@@ -67,6 +67,12 @@ PROPERTY_TITLES = {
         "Premium {bhk} BHK with Lake View, Koramangala",
         "Independent {bhk} BHK House in 2nd Block",
     ],
+    "Indiranagar": [
+        "{bhk} BHK Apartment in Indiranagar",
+        "Luxury {bhk} BHK near Indiranagar Metro",
+        "{bhk} BHK Flat in 100ft Road Indiranagar",
+        "Modern {bhk} BHK near CMH Road",
+    ],
 }
 
 DESCRIPTIONS = [
@@ -120,6 +126,10 @@ SOCIETIES = {
         "Raheja Residency", "Nitesh Long Island", "SNN Raj Etternia",
         "Alliance Orchid Springs", "Green Woods", "Ittina Properties",
     ],
+    "Indiranagar": [
+        "Embassy Habitat", "Prestige Leela Residences", "Purva Whitehall",
+        "Sreeram Sree Niwas", "Sterling Terrace",
+    ],
 }
 
 FACING = ["East", "West", "North", "South", "North-East", "South-East"]
@@ -142,12 +152,19 @@ PRICE_RANGES = {
         3: (40_000, 100_000,  12_000_000, 22_000_000),
         4: (70_000, 200_000,  20_000_000, 45_000_000),
     },
+    "Indiranagar": {
+        1: (18_000,  40_000,   5_000_000,  9_000_000),
+        2: (30_000,  70_000,   8_000_000, 15_000_000),
+        3: (50_000, 120_000,  15_000_000, 30_000_000),
+        4: (90_000, 250_000,  30_000_000, 60_000_000),
+    },
 }
 
 # Slight geo scatter within each area
 GEO_SCATTER = {
     "Whitefield":  {"lat": 12.9698, "lon": 77.7500, "spread": 0.02},
     "Koramangala": {"lat": 12.9352, "lon": 77.6245, "spread": 0.015},
+    "Indiranagar": {"lat": 12.9719, "lon": 77.6412, "spread": 0.015},
 }
 
 
