@@ -73,7 +73,11 @@ class AppConfig(BaseSettings):
     NOMINATIM_BASE_URL: str = Field(default="https://nominatim.openstreetmap.org")
     OVERPASS_BASE_URL: str = Field(default="https://overpass-api.de/api/interpreter")
     OSM_USER_AGENT: str = Field(default="RentalTruthTeller/1.0")
-    OSM_REQUEST_TIMEOUT_SECONDS: int = Field(default=10)
+    # Must stay comfortably above the Overpass query template's own
+    # [timeout:25] (see agents/facilities.py) -- otherwise the HTTP client
+    # gives up before the server does, turning every slow-but-legitimate
+    # query into a client-side timeout + wasted retry.
+    OSM_REQUEST_TIMEOUT_SECONDS: int = Field(default=30)
 
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
