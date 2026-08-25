@@ -1,9 +1,14 @@
+# agents/schemas.py
 """
 agents/schemas.py
 ──────────────────
-Pydantic models describing the exact JSON shape each LLM prompt in
-agents/prompts.py must return. Used with PydanticOutputParser (see
+Pydantic models describing the exact JSON shape each remaining LLM prompt
+in agents/prompts.py must return. Used with PydanticOutputParser (see
 agents/llm_call.py) instead of hand-rolled JSON string scraping.
+
+Geocoding and nearby-facility lookups no longer go through the LLM (see
+agents/geocoding.py and agents/facilities.py) — LocalityExtractionResult
+covers only the text-extraction step that still needs the LLM.
 """
 
 from __future__ import annotations
@@ -13,11 +18,9 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
-class GeocodeResult(BaseModel):
+class LocalityExtractionResult(BaseModel):
     locality: str = Field(description="Target locality or area name in Bangalore, e.g. Whitefield, Koramangala")
-    structured_address: str = Field(description="Cleaned, structured address string ending in Bangalore, Karnataka")
-    lat: float = Field(description="Estimated latitude for this locality in Bangalore")
-    lon: float = Field(description="Estimated longitude for this locality in Bangalore")
+    structured_address: str = Field(description="Cleaned, structured address string ending in Bangalore, Karnataka, suitable for a geocoding lookup")
 
 
 class FinancialsResult(BaseModel):
@@ -36,18 +39,6 @@ class VibeResult(BaseModel):
     community_signals: List[str] = Field(default_factory=list, description="Neighbourhood vibe and safety signals extracted from text")
     diet_pet_lifestyle: List[str] = Field(default_factory=list, description="Restrictive rules like food, pets, gender, marital status constraints")
     listing_nlp_sentiment: str = Field(default="Neutral", description="One word describing overall listing sentiment")
-
-
-class FacilityResult(BaseModel):
-    name: str = Field(description="Name of the nearby facility")
-    facility_type: str = Field(description="One of: school, hospital, metro, market")
-    distance_km: float = Field(description="Realistic road distance in kilometers")
-
-
-class NeighbourhoodResult(BaseModel):
-    metro_station: str = Field(description="Name of the closest metro station")
-    metro_distance_km: float = Field(description="Realistic road distance to the closest metro station in kilometers")
-    facilities: List[FacilityResult] = Field(default_factory=list, description="List of nearby schools, hospitals, and markets")
 
 
 class SynthesisResult(BaseModel):

@@ -1,8 +1,7 @@
-GEOCODE_PROMPT = """You are a Bangalore spatial resolver agent.
+EXTRACT_LOCALITY_PROMPT = """You are a Bangalore spatial resolver agent.
 Analyze the given rental property listing content and extract:
 1. The target locality or area in Bangalore (e.g. Whitefield, Koramangala, Indiranagar, HSR Layout).
-2. A cleaned, structured address.
-3. A sensible latitude/longitude geopoint estimate for this locality in Bangalore.
+2. A cleaned, structured address ending in Bangalore, Karnataka — suitable for a geocoding lookup.
 
 Raw Listing Content:
 {listing_input}
@@ -34,18 +33,6 @@ Given the user's raw property description or input listing, analyze the text to 
 
 Raw Listing Input:
 {listing_input}
-"""
-
-RESOLVE_NEIGHBOURHOOD_PROMPT = """You are a Bangalore local geographer and spatial intelligence agent.
-Given a target property's resolved locality and structured address:
-Locality: {locality}
-Structured Address: {structured_address}
-
-Resolve real, actual nearby facilities of the following types that exist around this area:
-1. The closest real Metro Station and its realistic road distance in kilometers (usually 0.5 to 5.0 km).
-2. Two real schools (within 3km) and their realistic distances.
-3. Two real hospitals or clinics (within 3km) and their realistic distances.
-4. Two real supermarkets or local shopping markets (within 2km) and their realistic distances.
 """
 
 SYNTHESIS_PROMPT = """You are the "Synthesis Agent" in a rental validation multi-agent network.

@@ -1,28 +1,25 @@
+# tests/test_schemas.py
 import pytest
 from pydantic import ValidationError
 
 from agents.schemas import (
-    GeocodeResult,
+    LocalityExtractionResult,
     FinancialsResult,
     BenchmarksResult,
     VibeResult,
-    FacilityResult,
-    NeighbourhoodResult,
     SynthesisResult,
 )
 
 
-def test_geocode_result_requires_lat_lon():
-    result = GeocodeResult(
+def test_locality_extraction_result_requires_both_fields():
+    result = LocalityExtractionResult(
         locality="Whitefield",
         structured_address="Whitefield, Bangalore, Karnataka",
-        lat=12.9698,
-        lon=77.7500,
     )
-    assert result.lat == 12.9698
+    assert result.locality == "Whitefield"
 
     with pytest.raises(ValidationError):
-        GeocodeResult(locality="Whitefield", structured_address="x")
+        LocalityExtractionResult(locality="Whitefield")
 
 
 def test_financials_result_defaults():
@@ -44,18 +41,6 @@ def test_vibe_result_defaults():
     result = VibeResult()
     assert result.amenity_vs_claim_diffs == []
     assert result.listing_nlp_sentiment == "Neutral"
-
-
-def test_neighbourhood_result_with_facilities():
-    result = NeighbourhoodResult(
-        metro_station="Whitefield Metro",
-        metro_distance_km=1.2,
-        facilities=[
-            FacilityResult(name="Test School", facility_type="school", distance_km=0.8)
-        ],
-    )
-    assert len(result.facilities) == 1
-    assert result.facilities[0].facility_type == "school"
 
 
 def test_synthesis_result_requires_core_fields():
