@@ -69,6 +69,12 @@ class AppConfig(BaseSettings):
 
     USE_MOCK_LLM: bool = Field(default=False)
 
+    # ── OpenStreetMap (geocoding + facility lookups) ─────────────────────────────
+    NOMINATIM_BASE_URL: str = Field(default="https://nominatim.openstreetmap.org")
+    OVERPASS_BASE_URL: str = Field(default="https://overpass-api.de/api/interpreter")
+    OSM_USER_AGENT: str = Field(default="RentalTruthTeller/1.0")
+    OSM_REQUEST_TIMEOUT_SECONDS: int = Field(default=10)
+
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="standard")  # standard | json
