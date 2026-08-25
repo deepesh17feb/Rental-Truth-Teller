@@ -29,8 +29,16 @@ def neighbourhood_node(state: AgentState) -> dict:
     geo = address_resolved.geo if (address_resolved and address_resolved.geo) else GeoPoint(lat=12.9716, lon=77.5946)
 
     try:
+        # Cache key includes coordinates, not just locality name: the cached
+        # value (find_nearby_facilities) depends on exact geo, and two
+        # listings sharing a locality string (e.g. via the LLM+Nominatim
+        # path on an unrecognized locality) can geocode to genuinely
+        # different addresses kilometers apart within that locality. 3
+        # decimals is ~100m precision -- coarse enough for nearby addresses
+        # to still share a cache entry, fine enough that distinct addresses
+        # don't collide.
         facilities = cached_locality_lookup(
-            f"neighbourhood:{locality}",
+            f"neighbourhood:{locality}:{geo.lat:.3f},{geo.lon:.3f}",
             lambda: find_nearby_facilities(geo),
         )
 
