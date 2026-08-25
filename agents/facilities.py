@@ -117,12 +117,19 @@ def find_nearby_facilities(
         if facility_type is None:
             continue
         seen_ids.add(el_id)
-        point = GeoPoint(lat=el["lat"], lon=el["lon"])
-        candidates.append(NearbyFacility(
-            name=name,
-            facility_type=facility_type,
-            distance_km=round(haversine_km(geo, point), 2),
-        ))
+        try:
+            point = GeoPoint(lat=el["lat"], lon=el["lon"])
+            candidates.append(NearbyFacility(
+                name=name,
+                facility_type=facility_type,
+                distance_km=round(haversine_km(geo, point), 2),
+            ))
+        except (KeyError, ValueError, TypeError) as e:
+            # Malformed individual element (missing/non-numeric lat/lon).
+            # Skip just this element rather than failing the whole lookup --
+            # same treatment as the unnamed-element skip above.
+            log.warning(f"[find_nearby_facilities] Skipping malformed element {el_id}: {e}")
+            continue
 
     result: list[NearbyFacility] = []
     for f_type, limit in _TYPE_LIMITS:

@@ -1,12 +1,26 @@
 # tests/test_facilities.py
+import re
+
 import pytest
 import responses
 
-from agents.facilities import find_nearby_facilities, haversine_km, FacilityLookupError
+from agents.facilities import find_nearby_facilities, haversine_km, FacilityLookupError, OVERPASS_QUERY_TEMPLATE
 from agents.state import GeoPoint
 from config.settings import config
 
 WHITEFIELD = GeoPoint(lat=12.9698, lon=77.7500)
+
+
+def test_client_timeout_exceeds_overpass_query_server_side_timeout():
+    # The Overpass query template's own [timeout:N] tells the server it may
+    # take up to N seconds. The HTTP client's timeout must be comfortably
+    # larger, or every query the server needs close to N seconds for looks
+    # like a client-side timeout and gets retried -- wasting expensive
+    # server-side computation and violating Overpass's usage policy.
+    match = re.search(r"\[timeout:(\d+)\]", OVERPASS_QUERY_TEMPLATE)
+    assert match, "OVERPASS_QUERY_TEMPLATE must declare a [timeout:N]"
+    server_side_timeout = int(match.group(1))
+    assert config.OSM_REQUEST_TIMEOUT_SECONDS > server_side_timeout
 
 
 def test_haversine_km_known_distance():
@@ -100,6 +114,30 @@ def test_find_nearby_facilities_empty_result_is_not_an_error():
     result = find_nearby_facilities(WHITEFIELD)
 
     assert result == []
+
+
+@responses.activate
+def test_find_nearby_facilities_skips_malformed_element_without_raising():
+    # A malformed element (missing "lat") among otherwise valid elements
+    # used to escape as a raw KeyError from outside the try/except that
+    # produces FacilityLookupError, killing the whole run. It should be
+    # skipped, not fail the whole lookup.
+    elements = [
+        {"type": "node", "id": 1, "lon": 77.751, "tags": {"amenity": "school", "name": "Malformed School"}},  # no lat
+        {"type": "node", "id": 2, "lat": 12.970, "lon": 77.751, "tags": {"amenity": "school", "name": "Good School"}},
+    ]
+    responses.add(
+        responses.POST,
+        config.OVERPASS_BASE_URL,
+        json={"elements": elements},
+        status=200,
+    )
+
+    result = find_nearby_facilities(WHITEFIELD)
+
+    names = [f.name for f in result]
+    assert names == ["Good School"]
+    assert "Malformed School" not in names
 
 
 @responses.activate

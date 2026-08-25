@@ -43,7 +43,13 @@ def geocode_address(
         results = response.json()
         if not results:
             raise GeocodingError(f"No geocoding match for query: {query!r}")
-        return GeoPoint(lat=float(results[0]["lat"]), lon=float(results[0]["lon"]))
+        try:
+            return GeoPoint(lat=float(results[0]["lat"]), lon=float(results[0]["lon"]))
+        except (KeyError, ValueError, TypeError) as e:
+            # Malformed 200 response (missing/non-numeric lat/lon). Not a
+            # network failure, so it should not be retried -- raise
+            # GeocodingError directly, same as the "no match" case above.
+            raise GeocodingError(f"Malformed geocoding result for query {query!r}: {e}") from e
 
     retryer = Retrying(
         stop=stop_after_attempt(max_attempts),

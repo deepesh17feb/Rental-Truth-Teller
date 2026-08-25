@@ -69,6 +69,39 @@ def test_geocode_address_retries_then_succeeds_on_transient_network_error():
 
 
 @responses.activate
+def test_geocode_address_malformed_result_raises_geocoding_error_without_retrying():
+    # 200 OK but the result is missing "lat" -- this used to escape as a raw
+    # KeyError, killing the whole run instead of degrading to the fallback
+    # path (which catches GeocodingError).
+    responses.add(
+        responses.GET,
+        f"{config.NOMINATIM_BASE_URL}/search",
+        json=[{"lon": "77.7500", "display_name": "Whitefield, Bangalore"}],
+        status=200,
+    )
+
+    with pytest.raises(GeocodingError):
+        geocode_address("Whitefield, Bangalore", wait_min=0.01, wait_max=0.05)
+
+    assert len(responses.calls) == 1  # malformed response is not retried
+
+
+@responses.activate
+def test_geocode_address_non_numeric_lat_raises_geocoding_error():
+    responses.add(
+        responses.GET,
+        f"{config.NOMINATIM_BASE_URL}/search",
+        json=[{"lat": "not-a-number", "lon": "77.7500"}],
+        status=200,
+    )
+
+    with pytest.raises(GeocodingError):
+        geocode_address("Whitefield, Bangalore", wait_min=0.01, wait_max=0.05)
+
+    assert len(responses.calls) == 1
+
+
+@responses.activate
 def test_geocode_address_raises_after_max_attempts_on_persistent_network_error():
     responses.add(responses.GET, f"{config.NOMINATIM_BASE_URL}/search", status=503)
     responses.add(responses.GET, f"{config.NOMINATIM_BASE_URL}/search", status=503)
