@@ -49,9 +49,14 @@ def test_find_nearby_facilities_returns_closest_per_type_sorted_by_distance():
 
 @responses.activate
 def test_find_nearby_facilities_dedupes_by_element_id():
+    # Same element id repeated 3x, facility_type="school" (limit 2, not 1) so
+    # the type limit alone can't explain a result of 1 -- only dedup can.
+    # Without dedup this would yield up to 2 "Near School" entries (sliced by
+    # the type limit); with dedup there is only ever 1 candidate to begin with.
     elements = [
-        {"type": "node", "id": 7, "lat": 12.972, "lon": 77.753, "tags": {"railway": "station", "public_transport": "station", "name": "Whitefield Metro"}},
-        {"type": "node", "id": 7, "lat": 12.972, "lon": 77.753, "tags": {"railway": "station", "public_transport": "station", "name": "Whitefield Metro"}},
+        {"type": "node", "id": 9, "lat": 12.970, "lon": 77.751, "tags": {"amenity": "school", "name": "Near School"}},
+        {"type": "node", "id": 9, "lat": 12.970, "lon": 77.751, "tags": {"amenity": "school", "name": "Near School"}},
+        {"type": "node", "id": 9, "lat": 12.970, "lon": 77.751, "tags": {"amenity": "school", "name": "Near School"}},
     ]
     responses.add(
         responses.POST,
@@ -62,8 +67,8 @@ def test_find_nearby_facilities_dedupes_by_element_id():
 
     result = find_nearby_facilities(WHITEFIELD)
 
-    metro_matches = [f for f in result if f.facility_type == "metro"]
-    assert len(metro_matches) == 1
+    school_matches = [f for f in result if f.facility_type == "school"]
+    assert len(school_matches) == 1
 
 
 @responses.activate
