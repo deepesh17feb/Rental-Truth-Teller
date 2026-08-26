@@ -79,6 +79,9 @@ class AppConfig(BaseSettings):
     # query into a client-side timeout + wasted retry.
     OSM_REQUEST_TIMEOUT_SECONDS: int = Field(default=30)
 
+    # ── Persistence ───────────────────────────────────────────────────────────
+    VERDICT_DB_PATH: str = Field(default="verdicts.db")
+
     # ── Logging ───────────────────────────────────────────────────────────────
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(default="standard")  # standard | json
