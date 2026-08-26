@@ -66,6 +66,9 @@ ui.log
 backend.log
 streamlit.log
 
+# Databases
+verdicts.db
+
 # Environment
 .env
 .venv
