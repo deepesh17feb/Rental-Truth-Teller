@@ -11,6 +11,7 @@ from typing import Dict, Any, Optional
 
 from agents.graph import app
 from agents.state import AgentState
+from agents.persistence import save_verdict
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +45,13 @@ class TruthTellerService:
             # Invoke the compiled LangGraph
             final_state = app.invoke(initial_state)
             log.info("Verification completed successfully.")
-            return final_state
         except Exception as e:
             log.error(f"Error during graph execution: {e}")
             raise
+
+        try:
+            save_verdict(listing_text, final_state)
+        except Exception as e:
+            log.warning(f"Failed to persist verdict (verification result is still returned): {e}")
+
+        return final_state
